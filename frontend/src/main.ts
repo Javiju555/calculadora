@@ -8,11 +8,12 @@ import {
 } from "./engine.ts";
 import { CATEGORIES, convert, formatConvResult } from "./converter.ts";
 import { createGrapher, type FnEntry } from "./grapher.ts";
+import { casExec, casDiff, casIntegrate, casClear, casVars, type StmtResult } from "./cas.ts";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 
 // ── Types ──────────────────────────────────────────────────────────────
-type Mode = "basic" | "scientific" | "conversions" | "graph";
+type Mode = "basic" | "scientific" | "conversions" | "graph" | "engineering";
 type NumberMode = "normal" | "sup" | "sub";
 
 interface HistoryEntry {
@@ -81,17 +82,41 @@ let sideGrapherInstance: ReturnType<typeof createGrapher> | null = null;
 let historyOpen = false;
 let sidePanelOpen = false;
 
-const HISTORY_PANEL_WIDTH = 300;
-const SIDE_PANEL_WIDTH = 360;
+const SIDE_PANEL_WIDTH = 380;
 const WINDOW_SIZES: Record<Mode, [number, number]> = {
-  basic: [440, 660],
-  scientific: [700, 820],
-  conversions: [440, 660],
-  graph: [980, 760],
+  basic: [480, 720],
+  scientific: [860, 800],
+  conversions: [480, 720],
+  graph: [980, 740],
+  engineering: [980, 820],
 };
 
 // Disable context menu (no reload/inspect in production)
 window.addEventListener("contextmenu", e => e.preventDefault());
+
+function blockBrowserZoom(): void {
+  if (document.documentElement.dataset.zoomGuardInstalled === "1") return;
+  document.documentElement.dataset.zoomGuardInstalled = "1";
+
+  const preventIfCancelable = (event: Event): void => {
+    if (event.cancelable) event.preventDefault();
+  };
+
+  window.addEventListener("wheel", event => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    preventIfCancelable(event);
+  }, { passive: false, capture: true });
+
+  const gestureHandler = preventIfCancelable as EventListener;
+  ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+    document.addEventListener(type, gestureHandler, { passive: false, capture: true });
+  });
+
+  document.documentElement.style.touchAction = "pan-x pan-y";
+  if (document.body) document.body.style.touchAction = "pan-x pan-y";
+}
+
+blockBrowserZoom();
 
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
   "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
@@ -125,21 +150,21 @@ function buildShell(): void {
       </div>
     </div>
     <div class="mode-tabs">
-      ${(["basic", "scientific", "conversions", "graph"] as Mode[]).map(m => `
+      ${(["basic", "scientific", "conversions", "graph", "engineering"] as Mode[]).map(m => `
         <button class="mode-tab" data-mode="${m}">${tabLabel(m)}</button>
       `).join("")}
     </div>
     <div class="app-container">
       <div class="app-main">
         <div id="content"></div>
-      </div>
-      <div class="history-sidebar" id="history-sidebar">
-        <div class="history-sidebar-header">
-          <span class="history-sidebar-title">Historial</span>
-          <button class="history-sidebar-clear" id="history-sidebar-clear">Limpiar</button>
-          <button class="history-sidebar-close" id="history-sidebar-close">✕</button>
+        <div class="history-sidebar" id="history-sidebar">
+          <div class="history-sidebar-header">
+            <span class="history-sidebar-title">Historial</span>
+            <button class="history-sidebar-clear" id="history-sidebar-clear">Limpiar</button>
+            <button class="history-sidebar-close" id="history-sidebar-close">✕</button>
+          </div>
+          <div class="history-sidebar-list" id="history-sidebar-list"></div>
         </div>
-        <div class="history-sidebar-list" id="history-sidebar-list"></div>
       </div>
       <div class="side-panel" id="side-panel">
         <div class="side-panel-header">
@@ -152,6 +177,19 @@ function buildShell(): void {
           <div class="graph-coords" id="side-graph-coords"></div>
         </div>
         <div class="side-panel-fn-list" id="side-panel-fn-list"></div>
+        
+        <!-- Oscilloscope text inputs -->
+        <div class="side-panel-osc" id="side-osc">
+          <div class="osc-row">
+            <span class="osc-label">X =</span>
+            <input type="text" id="osc-in-x" class="osc-input" placeholder="..." autocomplete="off">
+          </div>
+          <div class="osc-row">
+            <span class="osc-label">Y =</span>
+            <input type="text" id="osc-in-y" class="osc-input" placeholder="..." autocomplete="off">
+          </div>
+        </div>
+
         <div class="side-panel-controls">
           <button class="graph-ctrl-btn" id="side-graph-reset">Centrar</button>
         </div>
@@ -178,7 +216,6 @@ function buildShell(): void {
   appEl.querySelector("#history-sidebar-close")!.addEventListener("click", () => {
     historyOpen = false;
     updateHistoryDrawer();
-    resizeForCurrentMode();
   });
   appEl.querySelector("#history-sidebar-clear")!.addEventListener("click", () => {
     state.history = [];
@@ -194,7 +231,6 @@ function buildShell(): void {
 function toggleHistory(): void {
   historyOpen = !historyOpen;
   updateHistoryDrawer();
-  resizeForCurrentMode();
 }
 
 function updateHistoryDrawer(): void {
@@ -299,7 +335,7 @@ function toggleSidePanel(): void {
 }
 
 function isSidePanelAvailable(mode: Mode = state.mode): boolean {
-  return mode === "basic" || mode === "scientific";
+  return mode === "basic" || mode === "scientific" || mode === "engineering";
 }
 
 function updateShellControls(): void {
@@ -317,10 +353,7 @@ function updateShellControls(): void {
 
 function resizeForCurrentMode(): void {
   const [baseWidth, baseHeight] = WINDOW_SIZES[state.mode];
-  const width =
-    baseWidth +
-    (historyOpen ? HISTORY_PANEL_WIDTH : 0) +
-    (sidePanelOpen && isSidePanelAvailable() ? SIDE_PANEL_WIDTH : 0);
+  const width = baseWidth + (sidePanelOpen && isSidePanelAvailable() ? SIDE_PANEL_WIDTH : 0);
   void getCurrentWindow().setSize(new LogicalSize(width, baseHeight));
 }
 
@@ -340,16 +373,61 @@ function updateSidePanel(): void {
     return;
   }
 
-  requestAnimationFrame(() => {
+  // Wait for CSS transition to give the canvas real dimensions
+  const initOrUpdate = () => {
     const canvas = document.getElementById("side-graph-canvas") as HTMLCanvasElement | null;
     const coordsEl = document.getElementById("side-graph-coords") as HTMLElement | null;
     if (!canvas) return;
     if (!sideGrapherInstance) {
       sideGrapherInstance = createGrapher(canvas, () => state.angleMode, coordsEl ?? undefined);
+      initOscilloscopeInputs();
     }
-    sideGrapherInstance.setFunctions(graphFunctions);
-    updateSidePanelFns();
-  });
+    syncSideGraph();
+  };
+
+  if (sideGrapherInstance) {
+    initOrUpdate();
+  } else {
+    // First open: wait for transition to give canvas dimensions
+    requestAnimationFrame(() => requestAnimationFrame(initOrUpdate));
+  }
+}
+
+/** Sync the current calculator expression to the side panel graph */
+function syncSideGraph(): void {
+  if (!sidePanelOpen || !sideGrapherInstance) return;
+
+  const expr = state.input.trim();
+  if (!expr) {
+    graphFunctions[0].expr = "";
+  } else {
+    // Auto-close parens and trim trailing operators
+    const open = (expr.match(/\(/g) ?? []).length - (expr.match(/\)/g) ?? []).length;
+    let balanced = expr + ")".repeat(Math.max(0, open));
+    if (/[+−×÷^]$/.test(balanced.trim())) {
+      balanced = balanced.trim().slice(0, -1);
+    }
+
+    if (balanced.includes("x")) {
+      // Function of x → graph it directly
+      graphFunctions[0].expr = balanced;
+    } else {
+      // Constant expression → graph as y = result (horizontal line)
+      try {
+        const res = evalExpression(balanced, state.angleMode, undefined, { _: state.lastAns });
+        const val = typeof res.value === "number" ? res.value : (res.value as any).re;
+        if (Number.isFinite(val)) {
+          graphFunctions[0].expr = String(val);
+        } else {
+          graphFunctions[0].expr = "";
+        }
+      } catch {
+        graphFunctions[0].expr = "";
+      }
+    }
+  }
+  sideGrapherInstance.setFunctions(graphFunctions);
+  updateSidePanelFns();
 }
 
 function updateSidePanelFns(): void {
@@ -368,8 +446,92 @@ function updateSidePanelFns(): void {
   `).join("");
 }
 
+function initOscilloscopeInputs(): void {
+  const xIn = document.getElementById("osc-in-x") as HTMLInputElement | null;
+  const yIn = document.getElementById("osc-in-y") as HTMLInputElement | null;
+  if (!xIn || !yIn) return;
+
+  const fn = () => graphFunctions[0]?.expr.trim() || "";
+
+  xIn.addEventListener("input", () => {
+    if (!fn()) { yIn.value = ""; return; }
+    try {
+      // Evaluate X as an expression first in case they typed "pi/2"
+      const xValRes = evalExpression(xIn.value, state.angleMode);
+      if (typeof xValRes.value !== "number" && Math.abs((xValRes.value as any).im) > 1e-9) return;
+      const xNum = typeof xValRes.value === "number" ? xValRes.value : (xValRes.value as any).re;
+      
+      const r = evalExpression(fn(), state.angleMode, xNum);
+      if (typeof r.value === "number") {
+        yIn.value = parseFloat(r.value.toPrecision(6)).toString();
+      } else if (Math.abs((r.value as any).im) < 1e-9) {
+        yIn.value = parseFloat((r.value as any).re.toPrecision(6)).toString();
+      } else {
+        yIn.value = "Complex";
+      }
+    } catch {
+      yIn.value = "Error";
+    }
+  });
+
+  yIn.addEventListener("input", () => {
+    if (!fn()) { xIn.value = ""; return; }
+    try {
+      const yValRes = evalExpression(yIn.value, state.angleMode);
+      if (typeof yValRes.value !== "number" && Math.abs((yValRes.value as any).im) > 1e-9) return;
+      const yNum = typeof yValRes.value === "number" ? yValRes.value : (yValRes.value as any).re;
+      
+      // Super basic root finding for exact textual fallback: Newton's method or binary search
+      // Since evaluating inverses analytically is hard, we just do a binary search in current view
+      let minX = -100;
+      let maxX = 100;
+      if (sideGrapherInstance) {
+        // use view bounds roughly
+        // (If we exposed `view` from grapher we could be more precise, but -100 to 100 is ok for simple cases)
+      }
+      
+      let bestX = 0;
+      let bestDiff = Infinity;
+      // Simple scan to find a close root (rough inverse)
+      for (let x = -50; x <= 50; x += 0.05) {
+         try {
+           const r = evalExpression(fn(), state.angleMode, x);
+           const vy = typeof r.value === "number" ? r.value : (r.value as any).re;
+           const diff = Math.abs(vy - yNum);
+           if (diff < bestDiff) { bestDiff = diff; bestX = x; }
+         } catch {}
+      }
+      if (bestDiff < 0.5) {
+         // refine
+         let step = 0.01;
+         let searchX = bestX - 0.1;
+         for (let x = searchX; x <= bestX + 0.1; x += step) {
+           try {
+             const r = evalExpression(fn(), state.angleMode, x);
+             const vy = typeof r.value === "number" ? r.value : (r.value as any).re;
+             const diff = Math.abs(vy - yNum);
+             if (diff < bestDiff) { bestDiff = diff; bestX = x; }
+           } catch {}
+         }
+         xIn.value = "~" + parseFloat(bestX.toPrecision(4)).toString();
+      } else {
+         xIn.value = "No encontrado";
+      }
+
+    } catch {
+      xIn.value = "Error";
+    }
+  });
+}
+
 function tabLabel(m: Mode): string {
-  return { basic: "Básica", scientific: "Científica", conversions: "Conversiones", graph: "Gráficos" }[m];
+  return {
+    basic: "Básica",
+    scientific: "Científica",
+    conversions: "Conversiones",
+    graph: "Gráficos",
+    engineering: "Ingeniería",
+  }[m];
 }
 
 function content(): HTMLElement {
@@ -407,7 +569,7 @@ function setMode(m: Mode): void {
     initKeyboard();
     resizeForCurrentMode();
   } else if (m === "scientific") {
-    c.appendChild(buildCalcLayout(true));
+    c.appendChild(buildScientificLayout());
     updateDisplay();
     initKeyboard();
     resizeForCurrentMode();
@@ -415,6 +577,9 @@ function setMode(m: Mode): void {
     c.appendChild(buildConvLayout());
     renderConvCategories();
     updateConv();
+    resizeForCurrentMode();
+  } else if (m === "engineering") {
+    c.appendChild(buildEngineeringLayout());
     resizeForCurrentMode();
   } else {
     c.appendChild(buildGraphLayout());
@@ -466,6 +631,109 @@ function buildCalcLayout(sci: boolean): HTMLElement {
 }
 
 type BtnDef = { label: string; action: string; cls?: string };
+
+// ── Scientific unified layout ──────────────────────────────────────────
+// One flat 9-column grid: 5 sci cols + 4 numpad cols, all buttons same size.
+function buildScientificLayout(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "calc-layout scientific-layout";
+
+  // Display
+  const disp = document.createElement("div");
+  disp.className = "display";
+  disp.innerHTML = `
+    <div class="display-badges">
+      <div class="angle-badge" id="angle-badge">${state.angleMode}</div>
+      <div class="number-badge" id="number-badge"></div>
+    </div>
+    <div class="calc-history" id="calc-history"></div>
+    <div class="display-current">
+      <input type="text" class="display-expr" id="disp-expr" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">
+      <div class="display-result" id="disp-result">0</div>
+    </div>
+  `;
+  disp.querySelector("#angle-badge")?.addEventListener("click", () => handleAction("_angle"));
+  wrap.appendChild(disp);
+
+  // Chip strip for secondary functions (scrollable, compact)
+  const area = document.createElement("div");
+  area.className = "btn-area";
+  area.appendChild(buildSciStrip());
+
+  // Unified 9-column grid rows: [5 sci | 4 numpad]
+  const unifiedRows: BtnDef[][] = [
+    // Row 0: clear/back + top operators
+    [
+      { label: "C",     action: "C",       cls: "btn-special" },
+      { label: "√",     action: "sqrt(",   cls: "btn-sci" },
+      { label: "n!",    action: "!",       cls: "btn-sci" },
+      { label: "|x|",   action: "abs(",    cls: "btn-sci" },
+      { label: "⌫",     action: "back",    cls: "btn-special" },
+      { label: "(",     action: "(",       cls: "btn-special" },
+      { label: ")",     action: ")",       cls: "btn-special" },
+      { label: "mod",   action: "%",       cls: "btn-special" },
+      { label: "÷",     action: "÷",       cls: "btn-op" },
+    ],
+    // Row 1
+    [
+      { label: "sin",   action: "sin(",    cls: "btn-sci" },
+      { label: "cos",   action: "cos(",    cls: "btn-sci" },
+      { label: "tan",   action: "tan(",    cls: "btn-sci" },
+      { label: "log",   action: "log(",    cls: "btn-sci" },
+      { label: "ln",    action: "ln(",     cls: "btn-sci" },
+      { label: "7",     action: "7",       cls: "btn-num" },
+      { label: "8",     action: "8",       cls: "btn-num" },
+      { label: "9",     action: "9",       cls: "btn-num" },
+      { label: "×",     action: "×",       cls: "btn-op" },
+    ],
+    // Row 2
+    [
+      { label: "sin⁻¹", action: "asin(",   cls: "btn-sci" },
+      { label: "cos⁻¹", action: "acos(",   cls: "btn-sci" },
+      { label: "tan⁻¹", action: "atan(",   cls: "btn-sci" },
+      { label: "log₂",  action: "log2(",   cls: "btn-sci" },
+      { label: "eˣ",    action: "exp(",    cls: "btn-sci" },
+      { label: "4",     action: "4",       cls: "btn-num" },
+      { label: "5",     action: "5",       cls: "btn-num" },
+      { label: "6",     action: "6",       cls: "btn-num" },
+      { label: "−",     action: "−",       cls: "btn-op" },
+    ],
+    // Row 3
+    [
+      { label: "sinh",  action: "sinh(",   cls: "btn-sci" },
+      { label: "cosh",  action: "cosh(",   cls: "btn-sci" },
+      { label: "tanh",  action: "tanh(",   cls: "btn-sci" },
+      { label: "x²",    action: "^2",      cls: "btn-sci" },
+      { label: "xʸ",    action: "^(",      cls: "btn-sci" },
+      { label: "1",     action: "1",       cls: "btn-num" },
+      { label: "2",     action: "2",       cls: "btn-num" },
+      { label: "3",     action: "3",       cls: "btn-num" },
+      { label: "+",     action: "+",       cls: "btn-op" },
+    ],
+    // Row 4
+    [
+      { label: "nCr",   action: "nCr(",    cls: "btn-sci" },
+      { label: "Ans",   action: "_ans",    cls: "btn-sci" },
+      { label: "1/x",   action: "1/(",     cls: "btn-sci" },
+      { label: "π",     action: "π",       cls: "btn-const" },
+      { label: "e",     action: "e",       cls: "btn-const" },
+      { label: "±",     action: "negate",  cls: "btn-special" },
+      { label: "0",     action: "0",       cls: "btn-num" },
+      { label: ".",     action: ".",       cls: "btn-num" },
+      { label: "=",     action: "=",       cls: "btn-eq" },
+    ],
+  ];
+
+  unifiedRows.forEach(rowDefs => {
+    const row = document.createElement("div");
+    row.className = "btn-row cols-9";
+    rowDefs.forEach(def => row.appendChild(makeBtnEl(def)));
+    area.appendChild(row);
+  });
+
+  wrap.appendChild(area);
+  return wrap;
+}
 
 function buildSciRows(): HTMLElement[] {
   const rows: BtnDef[][] = [
@@ -685,11 +953,17 @@ function handleAction(action: string): void {
 
   // Clear all
   if (action === "C") {
-    pushUndo(state.input);
-    state.input = "";
-    state.freshResult = false;
-    state.numberMode = "normal";
-    updateDisplay(undefined, undefined, 0);
+    if (state.input === "") {
+      // Clear visual history registers, but keep permanent history
+      const histEl = document.getElementById("calc-history");
+      if (histEl) histEl.innerHTML = "";
+    } else {
+      pushUndo(state.input);
+      state.input = "";
+      state.freshResult = false;
+      state.numberMode = "normal";
+      updateDisplay(undefined, undefined, 0);
+    }
     return;
   }
 
@@ -926,19 +1200,31 @@ function updateDisplay(forcedResult?: string, errorMsg?: string, moveCursorTo?: 
 
   if (!state.input.trim()) {
     resEl.textContent = "0";
+    syncSideGraph();
     return;
   }
 
-  // Live preview
+  // Live preview and real-time graph
   try {
     const open = (state.input.match(/\(/g) ?? []).length - (state.input.match(/\)/g) ?? []).length;
-    const expr = state.input + ")".repeat(Math.max(0, open));
-    const res = evalExpression(expr, state.angleMode, undefined, { _: state.lastAns });
-    resEl.textContent = res.formatted;
-    adjustResultFontSize(resEl, res.formatted);
+    let expr = state.input + ")".repeat(Math.max(0, open));
+
+    // Auto-complete simple trailing operators for graphing smoothness
+    if (/[+−×÷^]$/.test(expr.trim())) {
+      expr = expr.trim().slice(0, -1);
+    }
+
+    if (expr.includes("x")) {
+      resEl.textContent = "ƒ(x)";
+    } else {
+      const res = evalExpression(expr, state.angleMode, undefined, { _: state.lastAns });
+      resEl.textContent = res.formatted;
+      adjustResultFontSize(resEl, res.formatted);
+    }
   } catch {
     resEl.textContent = "";
   }
+  syncSideGraph();
 }
 
 function adjustResultFontSize(el: HTMLElement, text: string): void {
@@ -982,14 +1268,28 @@ function bindExprInput(): void {
     const resEl = document.getElementById("disp-result");
     if (!resEl) return;
     resEl.className = "display-result";
-    if (!state.input.trim()) { resEl.textContent = "0"; return; }
+    if (!state.input.trim()) {
+      resEl.textContent = "0";
+      syncSideGraph();
+      return;
+    }
+
     try {
       const open = (state.input.match(/\(/g) ?? []).length - (state.input.match(/\)/g) ?? []).length;
-      const expr = state.input + ")".repeat(Math.max(0, open));
-      const res = evalExpression(expr, state.angleMode, undefined, { _: state.lastAns });
-      resEl.textContent = res.formatted;
-      adjustResultFontSize(resEl, res.formatted);
+      let expr = state.input + ")".repeat(Math.max(0, open));
+      if (/[+−×÷^]$/.test(expr.trim())) {
+        expr = expr.trim().slice(0, -1);
+      }
+
+      if (expr.includes("x")) {
+        resEl.textContent = "ƒ(x)";
+      } else {
+        const res = evalExpression(expr, state.angleMode, undefined, { _: state.lastAns });
+        resEl.textContent = res.formatted;
+        adjustResultFontSize(resEl, res.formatted);
+      }
     } catch { resEl.textContent = ""; }
+    syncSideGraph();
   });
 
   // Handle special keys on the expression input
@@ -1485,6 +1785,380 @@ function computeConv(direction: "from" | "to"): void {
   }
 }
 
+// ── Engineering / CAS layout ───────────────────────────────────────────
+function buildEngineeringLayout(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "eng-layout";
+
+  wrap.innerHTML = `
+    <div class="eng-sidebar">
+      <div class="eng-sidebar-header">
+        <span class="eng-sidebar-title" id="eng-sidebar-title">Variables</span>
+        <button class="eng-btn-small" id="eng-help-btn" title="Referencia de funciones">?</button>
+        <button class="eng-btn-small" id="eng-clear-vars" title="Limpiar variables">✕</button>
+      </div>
+      <div class="eng-vars-list" id="eng-vars-list">
+        <span class="eng-empty-hint">Sin variables definidas</span>
+      </div>
+      <div class="eng-help-panel" id="eng-help-panel">
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Sintaxis</div>
+          <div class="eng-help-row"><code>a = expr</code> asignar var</div>
+          <div class="eng-help-row"><code>ans</code> último resultado</div>
+          <div class="eng-help-row"><code>Shift+Enter</code> ejecutar</div>
+          <div class="eng-help-row"><code>↑ ↓</code> historial REPL</div>
+          <div class="eng-help-row"><code>Ctrl+click</code> copiar resultado</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Constantes</div>
+          <div class="eng-help-row"><code>pi</code> π ≈ 3.14159</div>
+          <div class="eng-help-row"><code>e</code> ≈ 2.71828</div>
+          <div class="eng-help-row"><code>i</code> unidad imaginaria</div>
+          <div class="eng-help-row"><code>phi</code> φ (áureo)</div>
+          <div class="eng-help-row"><code>tau</code> τ = 2π</div>
+          <div class="eng-help-row"><code>inf</code> ∞</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Trigonometría</div>
+          <div class="eng-help-row"><code>sin cos tan</code></div>
+          <div class="eng-help-row"><code>asin acos atan</code></div>
+          <div class="eng-help-row"><code>atan2(y, x)</code></div>
+          <div class="eng-help-row"><code>sinh cosh tanh</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Log / Exp</div>
+          <div class="eng-help-row"><code>sqrt(x)</code> raíz cuadrada</div>
+          <div class="eng-help-row"><code>cbrt(x)</code> raíz cúbica</div>
+          <div class="eng-help-row"><code>exp(x)</code> eˣ</div>
+          <div class="eng-help-row"><code>ln(x)</code> log natural</div>
+          <div class="eng-help-row"><code>log(x, b)</code> log base b</div>
+          <div class="eng-help-row"><code>log2 log10</code></div>
+          <div class="eng-help-row"><code>abs floor ceil round</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Estadísticas</div>
+          <div class="eng-help-row"><code>mean(a,b,...)</code></div>
+          <div class="eng-help-row"><code>median(a,b,...)</code></div>
+          <div class="eng-help-row"><code>std(a,b,...)</code></div>
+          <div class="eng-help-row"><code>var(a,b,...)</code></div>
+          <div class="eng-help-row"><code>sum prod min max</code></div>
+          <div class="eng-help-row"><code>hypot(a,b,...)</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Combinatoria</div>
+          <div class="eng-help-row"><code>n!</code> factorial</div>
+          <div class="eng-help-row"><code>nCr(n,r)</code> combinaciones</div>
+          <div class="eng-help-row"><code>nPr(n,r)</code> permutaciones</div>
+          <div class="eng-help-row"><code>gcd(a,b)</code> <code>lcm(a,b)</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Complejos</div>
+          <div class="eng-help-row"><code>re(z) im(z)</code></div>
+          <div class="eng-help-row"><code>arg(z)</code> argumento</div>
+          <div class="eng-help-row"><code>conj(z)</code> conjugado</div>
+          <div class="eng-help-row"><code>norm(z)</code> módulo</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Matrices</div>
+          <div class="eng-help-row"><code>[1,2; 3,4]</code> literal</div>
+          <div class="eng-help-row"><code>eye(n)</code> identidad n×n</div>
+          <div class="eng-help-row"><code>zeros(n,m)</code> ceros</div>
+          <div class="eng-help-row"><code>ones(n,m)</code> unos</div>
+          <div class="eng-help-row"><code>det(A)</code> determinante</div>
+          <div class="eng-help-row"><code>inv(A)</code> inversa</div>
+          <div class="eng-help-row"><code>transpose(A)</code></div>
+          <div class="eng-help-row"><code>trace(A)</code> traza</div>
+          <div class="eng-help-row"><code>rank(A)</code> rango</div>
+          <div class="eng-help-row"><code>norm(A)</code> norma Frobenius</div>
+          <div class="eng-help-row"><code>eig(A)</code> eigenvalores*</div>
+          <div class="eng-help-row"><code>linsolve(A,b)</code> Ax=b</div>
+          <div class="eng-help-row"><code>dot(u,v)</code> producto escalar</div>
+          <div class="eng-help-row"><code>cross(u,v)</code> producto vectorial</div>
+          <div class="eng-help-row"><code>size(A) rows(A) cols(A)</code></div>
+          <div class="eng-help-note">* solo matrices simétricas</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Solver</div>
+          <div class="eng-help-row"><code>solve(f)</code> raíz de f(x)=0</div>
+          <div class="eng-help-row"><code>solve(f, x0)</code> cerca de x0</div>
+          <div class="eng-help-row"><code>solve(f, g)</code> intersección</div>
+          <div class="eng-help-row"><code>solve(f, g, x0)</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">CAS (botones)</div>
+          <div class="eng-help-row"><code>d/dx</code> derivar selección</div>
+          <div class="eng-help-row"><code>∫dx</code> integrar selección</div>
+          <div class="eng-help-row"><code>simplify</code> simplificar</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Utilidades</div>
+          <div class="eng-help-row"><code>clamp(x, min, max)</code></div>
+          <div class="eng-help-row"><code>lerp(a, b, t)</code></div>
+          <div class="eng-help-row"><code>sign(x)</code></div>
+          <div class="eng-help-row"><code>rand()</code> aleatorio [0,1)</div>
+        </div>
+      </div>
+      <div class="eng-sidebar-ops">
+        <span class="eng-ops-label">Operaciones</span>
+        <div class="eng-ops-grid">
+          <button class="eng-op-btn" data-op="diff" title="Derivar respecto a x">d/dx</button>
+          <button class="eng-op-btn" data-op="integrate" title="Integrar respecto a x">∫dx</button>
+          <button class="eng-op-btn" data-op="simplify" title="Simplificar expresión">simplify</button>
+          <button class="eng-op-btn" data-op="factor" title="Factorizar">factor</button>
+        </div>
+        <div class="eng-angle-row">
+          <span class="eng-ops-label">Ángulos</span>
+          <div class="eng-ops-grid">
+            <button class="eng-op-btn eng-angle-btn ${state.angleMode === "DEG" ? "active" : ""}" data-angle="DEG">DEG</button>
+            <button class="eng-op-btn eng-angle-btn ${state.angleMode === "RAD" ? "active" : ""}" data-angle="RAD">RAD</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="eng-main">
+      <div class="eng-output" id="eng-output"></div>
+      <div class="eng-input-wrap">
+        <textarea class="eng-input" id="eng-input" rows="3"
+          placeholder="Escribe expresiones o asignaciones:&#10;a = 5&#10;b = sqrt(3)&#10;a^2 + b&#10;sin(pi/4)"
+          spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
+        <div class="eng-input-actions">
+          <button class="eng-run-btn" id="eng-run">▶ Ejecutar</button>
+          <button class="eng-btn-small" id="eng-clear-output" title="Limpiar salida">Limpiar</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    const textarea = wrap.querySelector<HTMLTextAreaElement>("#eng-input")!;
+    const output = wrap.querySelector<HTMLDivElement>("#eng-output")!;
+    const varsList = wrap.querySelector<HTMLDivElement>("#eng-vars-list")!;
+    const helpPanel = wrap.querySelector<HTMLDivElement>("#eng-help-panel")!;
+    const helpBtn = wrap.querySelector<HTMLButtonElement>("#eng-help-btn")!;
+    const sidebarTitle = wrap.querySelector<HTMLSpanElement>("#eng-sidebar-title")!;
+
+    // Help panel toggle
+    helpBtn.addEventListener("click", () => {
+      const showing = helpPanel.classList.toggle("visible");
+      varsList.style.display = showing ? "none" : "";
+      sidebarTitle.textContent = showing ? "Referencia" : "Variables";
+      helpBtn.classList.toggle("active", showing);
+    });
+
+    async function refreshVars() {
+      try {
+        const vars = await casVars();
+        const entries = Object.entries(vars).filter(([k]) => k !== "ans");
+        if (entries.length === 0) {
+          varsList.innerHTML = `<span class="eng-empty-hint">Sin variables definidas</span>`;
+        } else {
+          varsList.innerHTML = entries.map(([name, val]) =>
+            `<div class="eng-var-entry">
+              <span class="eng-var-name">${escapeHtml(name)}</span>
+              <span class="eng-var-eq">=</span>
+              <span class="eng-var-val">${escapeHtml(val)}</span>
+            </div>`
+          ).join("");
+        }
+      } catch {}
+    }
+
+    // History navigation
+    const cmdHistory: string[] = [];
+    let histIdx = -1;
+
+    async function runProgram(input: string) {
+      if (input.trim()) {
+        cmdHistory.unshift(input);
+        if (cmdHistory.length > 50) cmdHistory.pop();
+      }
+      histIdx = -1;
+      if (!input.trim()) return;
+      const block = document.createElement("div");
+      block.className = "eng-block";
+
+      // Input display
+      const inputDiv = document.createElement("div");
+      inputDiv.className = "eng-block-input";
+      inputDiv.textContent = input;
+      block.appendChild(inputDiv);
+
+      try {
+        const results = await casExec(input);
+        for (const r of results) {
+          const row = document.createElement("div");
+          row.className = "eng-block-result";
+          const isMatrix = r.value.startsWith('[') && r.value.includes(';');
+          if (isMatrix) row.classList.add("has-matrix");
+          if (r.name) {
+            row.innerHTML = `<span class="eng-res-name">${escapeHtml(r.name)}</span><span class="eng-res-eq">=</span><span class="eng-res-val">${renderEngValue(r.value)}</span>`;
+          } else {
+            row.innerHTML = `<span class="eng-res-arrow">→</span><span class="eng-res-val">${renderEngValue(r.value)}</span>`;
+          }
+          // Click: copy to input; Ctrl+click: copy to clipboard
+          row.addEventListener("click", (e) => {
+            if (e.ctrlKey || e.metaKey) {
+              navigator.clipboard?.writeText(r.value);
+              row.classList.add("copied");
+              setTimeout(() => row.classList.remove("copied"), 600);
+            } else {
+              textarea.value = r.value;
+              textarea.focus();
+            }
+          });
+          row.title = "Click → pegar en entrada   Ctrl+Click → copiar";
+          block.appendChild(row);
+        }
+      } catch (err: any) {
+        const errDiv = document.createElement("div");
+        errDiv.className = "eng-block-error";
+        errDiv.textContent = "Error: " + (err?.message ?? String(err));
+        block.appendChild(errDiv);
+      }
+
+      output.appendChild(block);
+      output.scrollTop = output.scrollHeight;
+      await refreshVars();
+    }
+
+    // Run button
+    wrap.querySelector("#eng-run")!.addEventListener("click", async () => {
+      const input = textarea.value;
+      await runProgram(input);
+      textarea.value = "";
+      textarea.focus();
+    });
+
+    // Shift+Enter runs, Enter is newline
+    textarea.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter" && e.shiftKey) {
+        e.preventDefault();
+        const input = textarea.value;
+        await runProgram(input);
+        textarea.value = "";
+        return;
+      }
+      // ↑↓ history navigation (only on single-line or when at start/end)
+      if (e.key === "ArrowUp" && !e.shiftKey && cmdHistory.length > 0) {
+        const lines = textarea.value.split("\n");
+        const cursorAtStart = textarea.selectionStart === 0;
+        if (lines.length === 1 || cursorAtStart) {
+          e.preventDefault();
+          histIdx = Math.min(histIdx + 1, cmdHistory.length - 1);
+          textarea.value = cmdHistory[histIdx] ?? "";
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+      } else if (e.key === "ArrowDown" && !e.shiftKey && histIdx >= 0) {
+        const lines = textarea.value.split("\n");
+        const cursorAtEnd = textarea.selectionStart === textarea.value.length;
+        if (lines.length === 1 || cursorAtEnd) {
+          e.preventDefault();
+          histIdx--;
+          textarea.value = histIdx >= 0 ? (cmdHistory[histIdx] ?? "") : "";
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+      }
+    });
+
+    // Clear output
+    wrap.querySelector("#eng-clear-output")!.addEventListener("click", () => {
+      output.innerHTML = "";
+    });
+
+    // Clear variables
+    wrap.querySelector("#eng-clear-vars")!.addEventListener("click", async () => {
+      await casClear();
+      await refreshVars();
+    });
+
+    // Operations toolbar
+    wrap.querySelectorAll<HTMLButtonElement>(".eng-op-btn[data-op]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const op = btn.dataset.op!;
+        const sel = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
+          || textarea.value.trim();
+        if (!sel) return;
+
+        let cmd = "";
+        if (op === "diff") cmd = `diff(${sel}, x)`;
+        else if (op === "integrate") {
+          cmd = `integrate(${sel}, x, -10, 10)`;
+        } else if (op === "simplify") cmd = `simplify(${sel})`;
+        else if (op === "factor") cmd = `factor(${sel})`;
+
+        if (op === "diff") {
+          try {
+            const result = await casDiff(sel, "x");
+            const block = document.createElement("div");
+            block.className = "eng-block";
+            block.innerHTML = `
+              <div class="eng-block-input">d/dx(${escapeHtml(sel)})</div>
+              <div class="eng-block-result"><span class="eng-res-arrow">→</span><span class="eng-res-val">${escapeHtml(result)}</span></div>
+            `;
+            block.querySelector(".eng-block-result")!.addEventListener("click", () => {
+              textarea.value = result;
+              textarea.focus();
+            });
+            output.appendChild(block);
+            output.scrollTop = output.scrollHeight;
+          } catch (err: any) {
+            const block = document.createElement("div");
+            block.className = "eng-block";
+            block.innerHTML = `<div class="eng-block-error">Error: ${escapeHtml(String(err?.message ?? err))}</div>`;
+            output.appendChild(block);
+            output.scrollTop = output.scrollHeight;
+          }
+        } else if (op === "integrate") {
+          // Show a dialog-like inline form for limits
+          textarea.value = `integrate(${sel}, x, 0, 1)`;
+          textarea.focus();
+        }
+      });
+    });
+
+    // Angle mode buttons
+    wrap.querySelectorAll<HTMLButtonElement>(".eng-angle-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const angle = btn.dataset.angle as "DEG" | "RAD";
+        state.angleMode = angle;
+        wrap.querySelectorAll(".eng-angle-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+      });
+    });
+
+    // Initial var refresh
+    refreshVars();
+    textarea.focus();
+  });
+
+  return wrap;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Render a CAS result value as HTML.
+ *  Matrix strings like "[1, 2; 3, 4]" become a grid table.
+ *  Everything else is plain escaped text.
+ */
+function renderEngValue(val: string): string {
+  if (val.startsWith('[') && val.endsWith(']')) {
+    const inner = val.slice(1, -1).trim();
+    if (!inner) return escapeHtml(val);
+    const rows = inner.split(';').map(r => r.trim().split(',').map(c => c.trim()));
+    const ncols = rows[0]?.length ?? 0;
+    // Only render as table if it looks like a proper matrix (≥2 elements)
+    if ((rows.length > 1 || ncols > 1) && rows.every(r => r.length === ncols && r.every(c => c.length > 0))) {
+      const rowsHtml = rows.map(row =>
+        `<div class="eng-matrix-row">${row.map(c => `<span class="eng-matrix-cell">${escapeHtml(c)}</span>`).join('')}</div>`
+      ).join('');
+      return `<div class="eng-matrix">${rowsHtml}</div>`;
+    }
+  }
+  return escapeHtml(val);
+}
+
 // ── Graph layout ───────────────────────────────────────────────────────
 function buildGraphLayout(): HTMLElement {
   const wrap = document.createElement("div");
@@ -1501,6 +2175,7 @@ function buildGraphLayout(): HTMLElement {
       <button class="graph-add-btn" id="graph-add">+ Añadir</button>
       <div class="graph-controls" style="margin-top:auto">
         <button class="graph-ctrl-btn" id="graph-reset">Centrar</button>
+        <button class="graph-ctrl-btn" id="graph-export" title="Exportar PNG">↓ PNG</button>
       </div>
     </div>
   `;
@@ -1521,6 +2196,10 @@ function buildGraphLayout(): HTMLElement {
 
     document.getElementById("graph-reset")?.addEventListener("click", () => {
       grapherInstance?.resetView();
+    });
+
+    document.getElementById("graph-export")?.addEventListener("click", () => {
+      grapherInstance?.exportPng();
     });
   });
 

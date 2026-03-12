@@ -26,6 +26,9 @@ export function createGrapher(
   redraw: () => void;
   resetView: () => void;
   destroy: () => void;
+  exportPng: (filename?: string) => void;
+  getView: () => GraphView;
+  setView: (v: GraphView) => void;
 } {
   const ctx = canvas.getContext("2d")!;
   const container = canvas.parentElement ?? canvas;
@@ -127,17 +130,44 @@ export function createGrapher(
   };
   const onTouchEnd = () => { pinchView0 = null; };
 
-  // ── Hover coordinates ────────────────────────────
+  let hoverX: number | null = null;
+  let hoverY: number | null = null;
+
+  // ── Hover coordinates (Oscilloscope) ─────────────────────────
   const onMouseMove = (e: MouseEvent) => {
-    if (!coordsEl) return;
+    if (!coordsEl || dragging) return;
     const rect = canvas.getBoundingClientRect();
     const gx = view.xMin + (e.clientX - rect.left) / rect.width * (view.xMax - view.xMin);
-    const gy = view.yMin + (1 - (e.clientY - rect.top) / rect.height) * (view.yMax - view.yMin);
-    coordsEl.textContent = `x = ${fmtCoord(gx)},  y = ${fmtCoord(gy)}`;
+    let gy = view.yMin + (1 - (e.clientY - rect.top) / rect.height) * (view.yMax - view.yMin);
+
+    hoverX = gx;
+    hoverY = gy;
+
+    // Line snapping (oscilloscope)
+    if (functions.length > 0 && functions[0].expr.trim()) {
+      try {
+        const r = evalExpression(functions[0].expr, angleMode(), gx);
+        if (typeof r.value === "number" || Math.abs((r.value as any).im) < 1e-9) {
+          const fnY = typeof r.value === "number" ? r.value : (r.value as any).re;
+          const yDistPix = Math.abs(fnY - gy) / (view.yMax - view.yMin) * rect.height;
+          // Snap if within 30 pixels vertically
+          if (yDistPix < 30) {
+            hoverY = fnY;
+            gy = fnY; // display exact snapped value
+          }
+        }
+      } catch { /* ignore eval errors during hover */ }
+    }
+
+    coordsEl.textContent = `x = ${fmtCoord(gx)}, y = ${fmtCoord(gy)}`;
     coordsEl.style.display = "";
+    redraw(); // redraw to show crosshair
   };
   const onMouseLeave = () => {
     if (coordsEl) coordsEl.style.display = "none";
+    hoverX = null;
+    hoverY = null;
+    redraw();
   };
 
   // ── Register all listeners ───────────────────────
@@ -185,8 +215,31 @@ export function createGrapher(
     drawAxes(ctx, w, h, view, toX, toY);
     functions.forEach(fn => {
       if (!fn.expr.trim()) return;
-      plotFunction(ctx, w, h, fn.expr, fn.color, view, toX, toY, angleMode());
+      const zeros = plotFunction(ctx, w, h, fn.expr, fn.color, view, toX, toY, angleMode());
+      drawZeros(ctx, zeros, fn.color, toX, toY);
     });
+    
+    // Draw crosshair if hovering
+    if (hoverX !== null && hoverY !== null) {
+      const cx = toX(hoverX);
+      const cy = toY(hoverY);
+      
+      // Lines
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.moveTo(cx, 0); ctx.lineTo(cx, h); // vertical
+      ctx.moveTo(0, cy); ctx.lineTo(w, cy); // horizontal
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Dot
+      ctx.beginPath();
+      ctx.fillStyle = "white";
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   function setFunctions(fns: FnEntry[]) {
@@ -200,6 +253,17 @@ export function createGrapher(
   function resetView() {
     view = { xMin: -10, xMax: 10, yMin: -8, yMax: 8 };
     redraw();
+  }
+
+  function getView(): GraphView { return { ...view }; }
+  function setView(v: GraphView) { view = { ...v }; redraw(); }
+
+  /** Export current canvas as PNG download */
+  function exportPng(filename = "grafica.png") {
+    const link = document.createElement("a");
+    link.download = filename;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
   }
 
   requestAnimationFrame(() => { fitCanvas(); redraw(); });
@@ -220,7 +284,7 @@ export function createGrapher(
     canvas.removeEventListener("mouseleave", onMouseLeave);
   }
 
-  return { setFunctions, redraw, resetView, destroy };
+  return { setFunctions, redraw, resetView, destroy, exportPng, getView, setView };
 }
 
 function plotFunction(
@@ -231,7 +295,7 @@ function plotFunction(
   toX: (x: number) => number,
   toY: (y: number) => number,
   angleMode: AngleMode,
-) {
+): number[] {
   const steps = Math.max(w * 2, 800);
   const yRange = view.yMax - view.yMin;
   ctx.beginPath();
@@ -241,6 +305,9 @@ function plotFunction(
   ctx.lineCap = "round";
   let penDown = false;
   let prevY: number | null = null;
+  let prevX: number | null = null;
+  const zeros: number[] = [];
+
   for (let s = 0; s <= steps; s++) {
     const x = view.xMin + (view.xMax - view.xMin) * s / steps;
     let y: number | null = null;
@@ -253,15 +320,48 @@ function plotFunction(
       }
       if (y !== null && !isFinite(y)) y = null;
     } catch { y = null; }
-    if (y === null) { penDown = false; prevY = null; continue; }
+
+    // Detect sign change → zero crossing
+    if (y !== null && prevY !== null && prevX !== null) {
+      if (prevY * y < 0 && Math.abs(y - prevY) < yRange * 0.5) {
+        // Linear interpolation for zero crossing
+        const zx = prevX - prevY * (x - prevX) / (y - prevY);
+        zeros.push(zx);
+      }
+    }
+
+    if (y === null) { penDown = false; prevY = null; prevX = null; continue; }
     if (prevY !== null && Math.abs(y - prevY) > yRange * 1.5) penDown = false;
     prevY = y;
+    prevX = x;
     const cx = toX(x);
     const cy = toY(y);
     if (!penDown) { ctx.moveTo(cx, cy); penDown = true; }
     else { ctx.lineTo(cx, cy); }
   }
   ctx.stroke();
+  return zeros;
+}
+
+function drawZeros(
+  ctx: CanvasRenderingContext2D,
+  zeros: number[],
+  color: string,
+  toX: (x: number) => number,
+  toY: (y: number) => number,
+) {
+  if (zeros.length === 0) return;
+  const y0 = toY(0);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 1;
+  for (const zx of zeros) {
+    const cx = toX(zx);
+    ctx.beginPath();
+    ctx.arc(cx, y0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
 }
 
 function drawGrid(
