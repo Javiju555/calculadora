@@ -1,10 +1,9 @@
+use super::ast::{Expr, Stmt};
+use nalgebra::DMatrix;
+use num_complex::Complex64;
 /// Numerical evaluator.  Works over Complex<f64> for full generality;
 /// results that have negligible imaginary parts are returned as real.
-
 use std::collections::HashMap;
-use num_complex::Complex64;
-use nalgebra::DMatrix;
-use super::ast::{Expr, Stmt};
 
 pub type Scope = HashMap<String, Value>;
 
@@ -25,7 +24,7 @@ impl Value {
             Value::Real(r) => Complex64::new(*r, 0.0),
             Value::Complex(c) => *c,
             Value::Symbolic(_) => Complex64::new(f64::NAN, 0.0),
-            Value::Matrix(m) if m.nrows() == 1 && m.ncols() == 1 => Complex64::new(m[(0,0)], 0.0),
+            Value::Matrix(m) if m.nrows() == 1 && m.ncols() == 1 => Complex64::new(m[(0, 0)], 0.0),
             Value::Matrix(_) => Complex64::new(f64::NAN, 0.0),
         }
     }
@@ -49,8 +48,16 @@ impl Value {
 }
 
 fn format_real(r: f64) -> String {
-    if r.is_nan() { return "Error".to_string(); }
-    if r.is_infinite() { return if r > 0.0 { "∞".to_string() } else { "-∞".to_string() }; }
+    if r.is_nan() {
+        return "Error".to_string();
+    }
+    if r.is_infinite() {
+        return if r > 0.0 {
+            "∞".to_string()
+        } else {
+            "-∞".to_string()
+        };
+    }
     // Exact integers
     if r.fract() == 0.0 && r.abs() < 1e15 {
         return format!("{}", r as i64);
@@ -68,7 +75,9 @@ fn format_real(r: f64) -> String {
 fn format_complex(c: Complex64) -> String {
     let re = format_real(c.re);
     let im_abs = c.im.abs();
-    if im_abs < 1e-12 { return re; }
+    if im_abs < 1e-12 {
+        return re;
+    }
     let im_str = if im_abs == 1.0 {
         String::new()
     } else {
@@ -96,15 +105,19 @@ fn format_matrix(m: &DMatrix<f64>) -> String {
 }
 
 fn factorial(n: f64) -> f64 {
-    if n < 0.0 || n.fract() != 0.0 { return f64::NAN; }
+    if n < 0.0 || n.fract() != 0.0 {
+        return f64::NAN;
+    }
     let n = n as u64;
-    if n > 170 { return f64::INFINITY; }
+    if n > 170 {
+        return f64::INFINITY;
+    }
     (1..=n).map(|k| k as f64).product()
 }
 
 pub struct Evaluator<'a> {
     scope: &'a Scope,
-    angle_mode: &'a str,   // "DEG" | "RAD"
+    angle_mode: &'a str, // "DEG" | "RAD"
 }
 
 impl<'a> Evaluator<'a> {
@@ -113,11 +126,19 @@ impl<'a> Evaluator<'a> {
     }
 
     fn to_radians(&self, x: f64) -> f64 {
-        if self.angle_mode == "DEG" { x * std::f64::consts::PI / 180.0 } else { x }
+        if self.angle_mode == "DEG" {
+            x * std::f64::consts::PI / 180.0
+        } else {
+            x
+        }
     }
 
     fn from_radians(&self, x: f64) -> f64 {
-        if self.angle_mode == "DEG" { x * 180.0 / std::f64::consts::PI } else { x }
+        if self.angle_mode == "DEG" {
+            x * 180.0 / std::f64::consts::PI
+        } else {
+            x
+        }
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<Value, String> {
@@ -133,6 +154,37 @@ impl<'a> Evaluator<'a> {
                     "i" => return Ok(Value::Complex(Complex64::new(0.0, 1.0))),
                     "inf" | "Inf" | "∞" => return Ok(Value::Real(f64::INFINITY)),
                     "phi" | "φ" => return Ok(Value::Real((1.0 + 5.0_f64.sqrt()) / 2.0)),
+                    // Physical constants
+                    "c" | "speed_of_light" => return Ok(Value::Real(299792458.0)),
+                    "h" | "planck" => return Ok(Value::Real(6.62607015e-34)),
+                    "hbar" | "reduced_planck" => return Ok(Value::Real(1.054571817e-34)),
+                    "G" | "gravitational" => return Ok(Value::Real(6.67430e-11)),
+                    "g" | "standard_gravity" => return Ok(Value::Real(9.80665)),
+                    "e_charge" | "electron_charge" => return Ok(Value::Real(1.602176634e-19)),
+                    "me" | "electron_mass" => return Ok(Value::Real(9.1093837015e-31)),
+                    "mp" | "proton_mass" => return Ok(Value::Real(1.67262192369e-27)),
+                    "mn" | "neutron_mass" => return Ok(Value::Real(1.67492749804e-27)),
+                    "Na" | "avogadro" => return Ok(Value::Real(6.02214076e23)),
+                    "k" | "boltzmann" => return Ok(Value::Real(1.380649e-23)),
+                    "R" | "gas_constant" => return Ok(Value::Real(8.314462618)),
+                    "sigma" | "stefan_boltzmann" => return Ok(Value::Real(5.670374419e-8)),
+                    "epsilon0" | "vacuum_permittivity" => return Ok(Value::Real(8.8541878128e-12)),
+                    "mu0" | "vacuum_permeability" => return Ok(Value::Real(1.25663706212e-6)),
+                    "alpha" | "fine_structure" => return Ok(Value::Real(7.2973525693e-3)),
+                    "phi0" | "magnetic_flux_quantum" => return Ok(Value::Real(2.067833848e-15)),
+                    "Ry" | "rydberg" => return Ok(Value::Real(10973731.568160)),
+                    "a0" | "bohr_radius" => return Ok(Value::Real(5.29177210903e-11)),
+                    "Eh" | "hartree" => return Ok(Value::Real(4.3597447222071e-18)),
+                    "muB" | "bohr_magneton" => return Ok(Value::Real(9.2740100783e-24)),
+                    // Chemistry constants
+                    "Fa" | "faraday" => return Ok(Value::Real(96485.33212)),
+                    "Vm" | "molar_volume" => return Ok(Value::Real(0.022413969545)),
+                    "atm_pa" | "atm" => return Ok(Value::Real(101325.0)),
+                    // Engineering
+                    "rpm2rad" => return Ok(Value::Real(std::f64::consts::PI / 30.0)),
+                    "rad2rpm" => return Ok(Value::Real(30.0 / std::f64::consts::PI)),
+                    "deg2rad" => return Ok(Value::Real(std::f64::consts::PI / 180.0)),
+                    "rad2deg" => return Ok(Value::Real(180.0 / std::f64::consts::PI)),
                     "ans" | "Ans" => {
                         // Look up in scope
                     }
@@ -198,14 +250,22 @@ impl<'a> Evaluator<'a> {
                 let mut data = Vec::with_capacity(nrows * ncols);
                 for row in rows {
                     if row.len() != ncols {
-                        return Err("Las filas de la matriz tienen longitudes distintas".to_string());
+                        return Err(
+                            "Las filas de la matriz tienen longitudes distintas".to_string()
+                        );
                     }
                     for elem in row {
                         match self.eval(elem)? {
                             Value::Real(r) => data.push(r),
                             Value::Complex(c) if c.im.abs() < 1e-12 => data.push(c.re),
-                            Value::Matrix(_) => return Err("No se admiten matrices anidadas".to_string()),
-                            _ => return Err("Los elementos de la matriz deben ser reales".to_string()),
+                            Value::Matrix(_) => {
+                                return Err("No se admiten matrices anidadas".to_string())
+                            }
+                            _ => {
+                                return Err(
+                                    "Los elementos de la matriz deben ser reales".to_string()
+                                )
+                            }
                         }
                     }
                 }
@@ -229,14 +289,21 @@ impl<'a> Evaluator<'a> {
         let argc = args.len();
         macro_rules! arg1 {
             () => {{
-                if argc != 1 { return Err(format!("{name}() requiere 1 argumento")); }
+                if argc != 1 {
+                    return Err(format!("{name}() requiere 1 argumento"));
+                }
                 self.eval(&args[0])?.to_complex()
             }};
         }
         macro_rules! arg2 {
             () => {{
-                if argc != 2 { return Err(format!("{name}() requiere 2 argumentos")); }
-                (self.eval(&args[0])?.to_complex(), self.eval(&args[1])?.to_complex())
+                if argc != 2 {
+                    return Err(format!("{name}() requiere 2 argumentos"));
+                }
+                (
+                    self.eval(&args[0])?.to_complex(),
+                    self.eval(&args[1])?.to_complex(),
+                )
             }};
         }
 
@@ -244,34 +311,52 @@ impl<'a> Evaluator<'a> {
         match name {
             "zeros" => {
                 let (r, c) = match argc {
-                    1 => { let n = self.eval_real(&args[0])? as usize; (n, n) }
-                    2 => (self.eval_real(&args[0])? as usize, self.eval_real(&args[1])? as usize),
+                    1 => {
+                        let n = self.eval_real(&args[0])? as usize;
+                        (n, n)
+                    }
+                    2 => (
+                        self.eval_real(&args[0])? as usize,
+                        self.eval_real(&args[1])? as usize,
+                    ),
                     _ => return Err("zeros(n) o zeros(n, m)".to_string()),
                 };
                 return Ok(Value::Matrix(DMatrix::zeros(r, c)));
             }
             "ones" => {
                 let (r, c) = match argc {
-                    1 => { let n = self.eval_real(&args[0])? as usize; (n, n) }
-                    2 => (self.eval_real(&args[0])? as usize, self.eval_real(&args[1])? as usize),
+                    1 => {
+                        let n = self.eval_real(&args[0])? as usize;
+                        (n, n)
+                    }
+                    2 => (
+                        self.eval_real(&args[0])? as usize,
+                        self.eval_real(&args[1])? as usize,
+                    ),
                     _ => return Err("ones(n) o ones(n, m)".to_string()),
                 };
                 return Ok(Value::Matrix(DMatrix::from_element(r, c, 1.0)));
             }
             "eye" => {
-                if argc != 1 { return Err("eye(n)".to_string()); }
+                if argc != 1 {
+                    return Err("eye(n)".to_string());
+                }
                 let n = self.eval_real(&args[0])? as usize;
                 return Ok(Value::Matrix(DMatrix::identity(n, n)));
             }
             "transpose" | "T" => {
-                if argc != 1 { return Err(format!("{name}(A) requiere 1 argumento")); }
+                if argc != 1 {
+                    return Err(format!("{name}(A) requiere 1 argumento"));
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => return Ok(Value::Matrix(m.transpose())),
                     _ => return Err(format!("{name}() requiere una matriz")),
                 }
             }
             "inv" => {
-                if argc != 1 { return Err("inv(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("inv(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => {
                         if m.nrows() != m.ncols() {
@@ -286,7 +371,9 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "det" => {
-                if argc != 1 { return Err("det(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("det(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => {
                         if m.nrows() != m.ncols() {
@@ -298,7 +385,9 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "trace" => {
-                if argc != 1 { return Err("trace(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("trace(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => {
                         if m.nrows() != m.ncols() {
@@ -310,7 +399,9 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "rank" => {
-                if argc != 1 { return Err("rank(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("rank(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => {
                         let svd = nalgebra::SVD::new(m, true, true);
@@ -328,7 +419,9 @@ impl<'a> Evaluator<'a> {
                 // Fall through to scalar abs/norm
             }
             "size" => {
-                if argc != 1 { return Err("size(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("size(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => {
                         let data = vec![m.nrows() as f64, m.ncols() as f64];
@@ -338,27 +431,35 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "rows" => {
-                if argc != 1 { return Err("rows(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("rows(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => return Ok(Value::Real(m.nrows() as f64)),
                     _ => return Err("rows() requiere una matriz".to_string()),
                 }
             }
             "cols" => {
-                if argc != 1 { return Err("cols(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("cols(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => return Ok(Value::Real(m.ncols() as f64)),
                     _ => return Err("cols() requiere una matriz".to_string()),
                 }
             }
             "dot" => {
-                if argc != 2 { return Err("dot(u, v) requiere 2 argumentos".to_string()); }
+                if argc != 2 {
+                    return Err("dot(u, v) requiere 2 argumentos".to_string());
+                }
                 match (self.eval(&args[0])?, self.eval(&args[1])?) {
                     (Value::Matrix(a), Value::Matrix(b)) => {
                         let av: Vec<f64> = a.iter().cloned().collect();
                         let bv: Vec<f64> = b.iter().cloned().collect();
                         if av.len() != bv.len() {
-                            return Err("dot(): los vectores deben tener la misma longitud".to_string());
+                            return Err(
+                                "dot(): los vectores deben tener la misma longitud".to_string()
+                            );
                         }
                         let d: f64 = av.iter().zip(bv.iter()).map(|(x, y)| x * y).sum();
                         return Ok(Value::Real(d));
@@ -367,7 +468,9 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "cross" => {
-                if argc != 2 { return Err("cross(u, v) requiere 2 argumentos".to_string()); }
+                if argc != 2 {
+                    return Err("cross(u, v) requiere 2 argumentos".to_string());
+                }
                 match (self.eval(&args[0])?, self.eval(&args[1])?) {
                     (Value::Matrix(a), Value::Matrix(b)) => {
                         let av: Vec<f64> = a.iter().cloned().collect();
@@ -377,14 +480,16 @@ impl<'a> Evaluator<'a> {
                         }
                         let (ax, ay, az) = (av[0], av[1], av[2]);
                         let (bx, by, bz) = (bv[0], bv[1], bv[2]);
-                        let data = vec![ay*bz - az*by, az*bx - ax*bz, ax*by - ay*bx];
+                        let data = vec![ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
                         return Ok(Value::Matrix(DMatrix::from_row_slice(1, 3, &data)));
                     }
                     _ => return Err("cross() requiere dos vectores 3D".to_string()),
                 }
             }
             "eig" => {
-                if argc != 1 { return Err("eig(A) requiere 1 argumento".to_string()); }
+                if argc != 1 {
+                    return Err("eig(A) requiere 1 argumento".to_string());
+                }
                 match self.eval(&args[0])? {
                     Value::Matrix(m) => {
                         if m.nrows() != m.ncols() {
@@ -394,20 +499,30 @@ impl<'a> Evaluator<'a> {
                         let sym = nalgebra::SymmetricEigen::new(m);
                         let mut evals: Vec<f64> = sym.eigenvalues.iter().cloned().collect();
                         evals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                        return Ok(Value::Matrix(DMatrix::from_row_slice(1, evals.len(), &evals)));
+                        return Ok(Value::Matrix(DMatrix::from_row_slice(
+                            1,
+                            evals.len(),
+                            &evals,
+                        )));
                     }
                     _ => return Err("eig() requiere una matriz".to_string()),
                 }
             }
             "linsolve" | "msolve" => {
                 // linsolve(A, b) — solve Ax = b
-                if argc != 2 { return Err(format!("{name}(A, b) requiere 2 argumentos")); }
+                if argc != 2 {
+                    return Err(format!("{name}(A, b) requiere 2 argumentos"));
+                }
                 match (self.eval(&args[0])?, self.eval(&args[1])?) {
                     (Value::Matrix(a), Value::Matrix(b)) => {
                         let lu = a.lu();
                         match lu.solve(&b) {
                             Some(x) => return Ok(Value::Matrix(x)),
-                            None => return Err("Sistema sin solución única (matriz singular)".to_string()),
+                            None => {
+                                return Err(
+                                    "Sistema sin solución única (matriz singular)".to_string()
+                                )
+                            }
                         }
                     }
                     _ => return Err(format!("{name}() requiere dos matrices")),
@@ -435,9 +550,32 @@ impl<'a> Evaluator<'a> {
                         let eval_fg2 = |x: f64| -> f64 {
                             let mut ls = scope_c.clone();
                             ls.insert("x".to_string(), Value::Real(x));
-                            let ev = Evaluator { scope: &ls, angle_mode: am };
-                            let fv = ev.eval(fa).ok().and_then(|v| if let Value::Real(r) = v { Some(r) } else { None }).unwrap_or(f64::NAN);
-                            let gv = ev.eval(ga).ok().and_then(|v| if let Value::Real(r) = v { Some(r) } else { None }).unwrap_or(f64::NAN);
+                            let ev = Evaluator {
+                                scope: &ls,
+                                angle_mode: am,
+                            };
+                            let fv = ev
+                                .eval(fa)
+                                .ok()
+                                .and_then(|v| {
+                                    if let Value::Real(r) = v {
+                                        Some(r)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .unwrap_or(f64::NAN);
+                            let gv = ev
+                                .eval(ga)
+                                .ok()
+                                .and_then(|v| {
+                                    if let Value::Real(r) = v {
+                                        Some(r)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .unwrap_or(f64::NAN);
                             fv - gv
                         };
                         let root = newton_raphson(eval_fg2, 0.0, 200)?;
@@ -453,9 +591,32 @@ impl<'a> Evaluator<'a> {
                     let eval_fg = |x: f64| -> f64 {
                         let mut ls = scope_c.clone();
                         ls.insert("x".to_string(), Value::Real(x));
-                        let ev = Evaluator { scope: &ls, angle_mode: am };
-                        let fv = ev.eval(fa).ok().and_then(|v| if let Value::Real(r) = v { Some(r) } else { None }).unwrap_or(f64::NAN);
-                        let gv = ev.eval(ga).ok().and_then(|v| if let Value::Real(r) = v { Some(r) } else { None }).unwrap_or(f64::NAN);
+                        let ev = Evaluator {
+                            scope: &ls,
+                            angle_mode: am,
+                        };
+                        let fv = ev
+                            .eval(fa)
+                            .ok()
+                            .and_then(|v| {
+                                if let Value::Real(r) = v {
+                                    Some(r)
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(f64::NAN);
+                        let gv = ev
+                            .eval(ga)
+                            .ok()
+                            .and_then(|v| {
+                                if let Value::Real(r) = v {
+                                    Some(r)
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(f64::NAN);
                         fv - gv
                     };
                     let root = newton_raphson(eval_fg, x0, 200)?;
@@ -467,7 +628,10 @@ impl<'a> Evaluator<'a> {
                 let eval_f = |x: f64| -> f64 {
                     let mut ls = scope_c.clone();
                     ls.insert("x".to_string(), Value::Real(x));
-                    let ev = Evaluator { scope: &ls, angle_mode };
+                    let ev = Evaluator {
+                        scope: &ls,
+                        angle_mode,
+                    };
                     match ev.eval(fe) {
                         Ok(Value::Real(r)) => r,
                         Ok(Value::Complex(c)) if c.im.abs() < 1e-12 => c.re,
@@ -579,15 +743,23 @@ impl<'a> Evaluator<'a> {
             }
             // Min / max
             "min" => {
-                if argc < 1 { return Err("min() requiere al menos 1 arg".to_string()); }
+                if argc < 1 {
+                    return Err("min() requiere al menos 1 arg".to_string());
+                }
                 let mut mn = self.eval_real(&args[0])?;
-                for a in &args[1..] { mn = mn.min(self.eval_real(a)?); }
+                for a in &args[1..] {
+                    mn = mn.min(self.eval_real(a)?);
+                }
                 Complex64::new(mn, 0.0)
             }
             "max" => {
-                if argc < 1 { return Err("max() requiere al menos 1 arg".to_string()); }
+                if argc < 1 {
+                    return Err("max() requiere al menos 1 arg".to_string());
+                }
                 let mut mx = self.eval_real(&args[0])?;
-                for a in &args[1..] { mx = mx.max(self.eval_real(a)?); }
+                for a in &args[1..] {
+                    mx = mx.max(self.eval_real(a)?);
+                }
                 Complex64::new(mx, 0.0)
             }
             // Combinatorics
@@ -608,7 +780,9 @@ impl<'a> Evaluator<'a> {
             "nPr" | "perm" => {
                 let (n, r) = arg2!();
                 let (ni, ri) = (n.re as u64, r.re as u64);
-                if ri > ni { return Ok(Value::Real(0.0)); }
+                if ri > ni {
+                    return Ok(Value::Real(0.0));
+                }
                 let v: f64 = ((ni - ri + 1)..=ni).map(|k| k as f64).product();
                 Complex64::new(v, 0.0)
             }
@@ -625,22 +799,32 @@ impl<'a> Evaluator<'a> {
             }
             // ── Statistics (variadic) ─────────────────────────────────────
             "mean" | "avg" => {
-                if argc == 0 { return Err("mean() requiere al menos 1 argumento".to_string()); }
+                if argc == 0 {
+                    return Err("mean() requiere al menos 1 argumento".to_string());
+                }
                 let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
                 let vals = vals?;
                 Complex64::new(vals.iter().sum::<f64>() / vals.len() as f64, 0.0)
             }
             "median" => {
-                if argc == 0 { return Err("median() requiere al menos 1 argumento".to_string()); }
+                if argc == 0 {
+                    return Err("median() requiere al menos 1 argumento".to_string());
+                }
                 let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
                 let mut vals = vals?;
                 vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
                 let n = vals.len();
-                let m = if n % 2 == 0 { (vals[n/2-1] + vals[n/2]) / 2.0 } else { vals[n/2] };
+                let m = if n % 2 == 0 {
+                    (vals[n / 2 - 1] + vals[n / 2]) / 2.0
+                } else {
+                    vals[n / 2]
+                };
                 Complex64::new(m, 0.0)
             }
             "std" | "stdev" => {
-                if argc < 2 { return Err("std() requiere al menos 2 argumentos".to_string()); }
+                if argc < 2 {
+                    return Err("std() requiere al menos 2 argumentos".to_string());
+                }
                 let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
                 let vals = vals?;
                 let n = vals.len() as f64;
@@ -649,40 +833,265 @@ impl<'a> Evaluator<'a> {
                 Complex64::new(var_.sqrt(), 0.0)
             }
             "var" | "variance" => {
-                if argc < 2 { return Err("var() requiere al menos 2 argumentos".to_string()); }
+                if argc < 2 {
+                    return Err("var() requiere al menos 2 argumentos".to_string());
+                }
                 let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
                 let vals = vals?;
                 let n = vals.len() as f64;
                 let mean = vals.iter().sum::<f64>() / n;
-                Complex64::new(vals.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0), 0.0)
+                Complex64::new(
+                    vals.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0),
+                    0.0,
+                )
             }
             "sum" => {
-                if argc == 0 { return Err("sum() requiere al menos 1 argumento".to_string()); }
+                if argc == 0 {
+                    return Err("sum() requiere al menos 1 argumento".to_string());
+                }
                 let mut s = Complex64::new(0.0, 0.0);
-                for a in args { s += self.eval(a)?.to_complex(); }
+                for a in args {
+                    s += self.eval(a)?.to_complex();
+                }
                 s
             }
             "prod" | "product" => {
-                if argc == 0 { return Err("prod() requiere al menos 1 argumento".to_string()); }
+                if argc == 0 {
+                    return Err("prod() requiere al menos 1 argumento".to_string());
+                }
                 let mut p = Complex64::new(1.0, 0.0);
-                for a in args { p *= self.eval(a)?.to_complex(); }
+                for a in args {
+                    p *= self.eval(a)?.to_complex();
+                }
                 p
             }
             "hypot" => {
-                if argc < 2 { return Err("hypot() requiere al menos 2 argumentos".to_string()); }
+                if argc < 2 {
+                    return Err("hypot() requiere al menos 2 argumentos".to_string());
+                }
                 let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
                 let h = vals?.iter().map(|x| x * x).sum::<f64>().sqrt();
                 Complex64::new(h, 0.0)
             }
             "clamp" => {
-                if argc != 3 { return Err("clamp(x, min, max) requiere 3 argumentos".to_string()); }
-                let (x, lo, hi) = (self.eval_real(&args[0])?, self.eval_real(&args[1])?, self.eval_real(&args[2])?);
+                if argc != 3 {
+                    return Err("clamp(x, min, max) requiere 3 argumentos".to_string());
+                }
+                let (x, lo, hi) = (
+                    self.eval_real(&args[0])?,
+                    self.eval_real(&args[1])?,
+                    self.eval_real(&args[2])?,
+                );
                 Complex64::new(x.clamp(lo, hi), 0.0)
             }
             "lerp" => {
-                if argc != 3 { return Err("lerp(a, b, t) requiere 3 argumentos".to_string()); }
-                let (a, b, t) = (self.eval_real(&args[0])?, self.eval_real(&args[1])?, self.eval_real(&args[2])?);
+                if argc != 3 {
+                    return Err("lerp(a, b, t) requiere 3 argumentos".to_string());
+                }
+                let (a, b, t) = (
+                    self.eval_real(&args[0])?,
+                    self.eval_real(&args[1])?,
+                    self.eval_real(&args[2])?,
+                );
                 Complex64::new(a + (b - a) * t, 0.0)
+            }
+            // ── Special functions ────────────────────────────────────────────
+            "gamma" | "Γ" => {
+                if argc != 1 {
+                    return Err("gamma(x) requiere 1 argumento".to_string());
+                }
+                let x = arg1!();
+                Complex64::new(gamma(x.re), 0.0)
+            }
+            "lngamma" | "lgamma" => {
+                if argc != 1 {
+                    return Err("lngamma(x) requiere 1 argumento".to_string());
+                }
+                let x = arg1!();
+                Complex64::new(lngamma(x.re), 0.0)
+            }
+            "beta" | "β" => {
+                if argc != 2 {
+                    return Err("beta(a, b) requiere 2 argumentos".to_string());
+                }
+                let (a, b) = arg2!();
+                Complex64::new(beta(a.re, b.re), 0.0)
+            }
+            "erf" => {
+                if argc != 1 {
+                    return Err("erf(x) requiere 1 argumento".to_string());
+                }
+                let x = arg1!();
+                Complex64::new(erf(x.re), 0.0)
+            }
+            "erfc" => {
+                if argc != 1 {
+                    return Err("erfc(x) requiere 1 argumento".to_string());
+                }
+                let x = arg1!();
+                Complex64::new(erfc(x.re), 0.0)
+            }
+            "w" | "lambertw" | "LambertW" => {
+                if argc != 1 && argc != 2 {
+                    return Err("w(x) o w(x, branch) requiere 1-2 argumentos".to_string());
+                }
+                let x = self.eval_real(&args[0])?;
+                let branch = if argc == 2 {
+                    self.eval_real(&args[1])? as i32
+                } else {
+                    0
+                };
+                Complex64::new(lambert_w(x, branch)?, 0.0)
+            }
+            "besselj" => {
+                if argc != 2 {
+                    return Err("besselj(n, x) requiere 2 argumentos".to_string());
+                }
+                let (n, x) = arg2!();
+                Complex64::new(bessel_j(n.re as i32, x.re), 0.0)
+            }
+            "bessely" => {
+                if argc != 2 {
+                    return Err("bessely(n, x) requiere 2 argumentos".to_string());
+                }
+                let (n, x) = arg2!();
+                Complex64::new(bessel_y(n.re as i32, x.re), 0.0)
+            }
+            "factorial" | "fact" => {
+                if argc != 1 {
+                    return Err("factorial(n) requiere 1 argumento".to_string());
+                }
+                let x = arg1!();
+                Complex64::new(factorial(x.re), 0.0)
+            }
+            "double_factorial" | "factorial2" => {
+                if argc != 1 {
+                    return Err("factorial2(n) requiere 1 argumento".to_string());
+                }
+                let x = arg1!();
+                Complex64::new(double_factorial(x.re), 0.0)
+            }
+            "binom" | "binomial" => {
+                if argc != 2 {
+                    return Err("binom(n, k) requiere 2 argumentos".to_string());
+                }
+                let (n, k) = arg2!();
+                Complex64::new(binomial_coeff(n.re as u64, k.re as u64), 0.0)
+            }
+            // ── Normal distribution ───────────────────────────────────────
+            "normpdf" | "npdf" => {
+                if argc < 1 || argc > 3 {
+                    return Err("normpdf(x, mu=0, sigma=1)".to_string());
+                }
+                let x = self.eval_real(&args[0])?;
+                let mu = if argc >= 2 { self.eval_real(&args[1])? } else { 0.0 };
+                let sigma = if argc >= 3 { self.eval_real(&args[2])? } else { 1.0 };
+                if sigma <= 0.0 { return Err("normpdf: sigma debe ser > 0".to_string()); }
+                let z = (x - mu) / sigma;
+                let v = (-0.5 * z * z).exp() / (sigma * (2.0 * std::f64::consts::PI).sqrt());
+                Complex64::new(v, 0.0)
+            }
+            "normcdf" | "ncdf" => {
+                if argc < 1 || argc > 3 {
+                    return Err("normcdf(x, mu=0, sigma=1)".to_string());
+                }
+                let x = self.eval_real(&args[0])?;
+                let mu = if argc >= 2 { self.eval_real(&args[1])? } else { 0.0 };
+                let sigma = if argc >= 3 { self.eval_real(&args[2])? } else { 1.0 };
+                if sigma <= 0.0 { return Err("normcdf: sigma debe ser > 0".to_string()); }
+                let z = (x - mu) / (sigma * 2.0_f64.sqrt());
+                Complex64::new(0.5 * (1.0 + erf(z)), 0.0)
+            }
+            "norminv" | "qnorm" | "normppf" => {
+                if argc < 1 || argc > 3 {
+                    return Err("norminv(p, mu=0, sigma=1)".to_string());
+                }
+                let p = self.eval_real(&args[0])?;
+                let mu = if argc >= 2 { self.eval_real(&args[1])? } else { 0.0 };
+                let sigma = if argc >= 3 { self.eval_real(&args[2])? } else { 1.0 };
+                Complex64::new(mu + sigma * normal_quantile(p), 0.0)
+            }
+            // ── Discrete distributions ────────────────────────────────────
+            "poissonpmf" | "poisson_pmf" => {
+                if argc != 2 {
+                    return Err("poissonpmf(k, lambda)".to_string());
+                }
+                let k = self.eval_real(&args[0])?.round() as i64;
+                let lambda = self.eval_real(&args[1])?;
+                if k < 0 || lambda < 0.0 { return Ok(Value::Real(0.0)); }
+                let v = (-lambda).exp() * lambda.powi(k as i32) / factorial(k as f64);
+                Complex64::new(v, 0.0)
+            }
+            "binompmf" | "binom_pmf" => {
+                if argc != 3 {
+                    return Err("binompmf(k, n, p)".to_string());
+                }
+                let k = self.eval_real(&args[0])?.round() as u64;
+                let n = self.eval_real(&args[1])?.round() as u64;
+                let p = self.eval_real(&args[2])?;
+                if k > n { return Ok(Value::Real(0.0)); }
+                let coef = binomial_coeff(n, k);
+                let v = coef * p.powi(k as i32) * (1.0 - p).powi((n - k) as i32);
+                Complex64::new(v, 0.0)
+            }
+            // ── Decibel functions ─────────────────────────────────────────
+            "db" | "todB" | "dB" => {
+                if argc != 1 { return Err("db(x) — ratio potencia a dB".to_string()); }
+                let x = self.eval_real(&args[0])?;
+                if x <= 0.0 { return Err("db(): x debe ser > 0".to_string()); }
+                Complex64::new(10.0 * x.log10(), 0.0)
+            }
+            "from_db" | "from_dB" | "inv_dB" => {
+                if argc != 1 { return Err("from_db(dB)".to_string()); }
+                let x = self.eval_real(&args[0])?;
+                Complex64::new(10.0_f64.powf(x / 10.0), 0.0)
+            }
+            "dbm" => {
+                if argc != 1 { return Err("dbm(watts)".to_string()); }
+                let w = self.eval_real(&args[0])?;
+                if w <= 0.0 { return Err("dbm(): potencia debe ser > 0".to_string()); }
+                Complex64::new(10.0 * (w * 1000.0).log10(), 0.0)
+            }
+            "from_dbm" | "mw_dbm" => {
+                if argc != 1 { return Err("from_dbm(dBm)".to_string()); }
+                let x = self.eval_real(&args[0])?;
+                Complex64::new(10.0_f64.powf(x / 10.0) / 1000.0, 0.0)
+            }
+            // ── Math utilities ────────────────────────────────────────────
+            "nthroot" => {
+                if argc != 2 { return Err("nthroot(n, x)".to_string()); }
+                let n = self.eval_real(&args[0])?;
+                let x = self.eval_real(&args[1])?;
+                if n == 0.0 { return Err("nthroot: n ≠ 0".to_string()); }
+                Complex64::new(x.signum() * x.abs().powf(1.0 / n), 0.0)
+            }
+            "sinc" => {
+                if argc != 1 { return Err("sinc(x)".to_string()); }
+                let x = self.eval_real(&args[0])?;
+                Complex64::new(if x.abs() < 1e-14 { 1.0 } else { x.sin() / x }, 0.0)
+            }
+            "isprime" => {
+                if argc != 1 { return Err("isprime(n)".to_string()); }
+                let n = self.eval_real(&args[0])?.round() as i64;
+                Complex64::new(if is_prime(n.unsigned_abs()) && n >= 2 { 1.0 } else { 0.0 }, 0.0)
+            }
+            "parallel" => {
+                // Electrical parallel resistance: 1/R = 1/R1 + 1/R2 + ...
+                if argc < 2 { return Err("parallel(R1, R2, ...) — resistencia paralela".to_string()); }
+                let sum: f64 = args.iter()
+                    .map(|a| self.eval_real(a).map(|r| 1.0 / r))
+                    .collect::<Result<Vec<f64>, _>>()?
+                    .iter().sum();
+                if sum == 0.0 { return Err("parallel: división por cero".to_string()); }
+                Complex64::new(1.0 / sum, 0.0)
+            }
+            "rms" => {
+                // Root mean square
+                if argc == 0 { return Err("rms() requiere al menos 1 argumento".to_string()); }
+                let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
+                let vals = vals?;
+                let rms = (vals.iter().map(|x| x * x).sum::<f64>() / vals.len() as f64).sqrt();
+                Complex64::new(rms, 0.0)
             }
             other => {
                 // Check user-defined function in scope (store as Symbolic strings later)
@@ -700,8 +1109,12 @@ fn newton_raphson<F: Fn(f64) -> f64>(f: F, x0: f64, max_iter: usize) -> Result<f
     let mut x = if x0.is_finite() { x0 } else { 0.0 };
     for _ in 0..max_iter {
         let fx = f(x);
-        if fx.abs() < tol { return Ok(x); }
-        if !fx.is_finite() { break; }
+        if fx.abs() < tol {
+            return Ok(x);
+        }
+        if !fx.is_finite() {
+            break;
+        }
         let dfx = (f(x + h) - f(x - h)) / (2.0 * h);
         if dfx.abs() < 1e-15 {
             // Derivative too small, try a nudge
@@ -709,25 +1122,44 @@ fn newton_raphson<F: Fn(f64) -> f64>(f: F, x0: f64, max_iter: usize) -> Result<f
             continue;
         }
         let x_new = x - fx / dfx;
-        if !x_new.is_finite() { break; }
-        if (x_new - x).abs() < tol { return Ok(x_new); }
+        if !x_new.is_finite() {
+            break;
+        }
+        if (x_new - x).abs() < tol {
+            return Ok(x_new);
+        }
         x = x_new;
     }
     // Final check
-    if f(x).abs() < 1e-6 { return Ok(x); }
-    Err("solve(): no converge. Prueba con un valor inicial diferente (ej: solve(f, 1.0))".to_string())
+    if f(x).abs() < 1e-6 {
+        return Ok(x);
+    }
+    Err(
+        "solve(): no converge. Prueba con un valor inicial diferente (ej: solve(f, 1.0))"
+            .to_string(),
+    )
 }
 
 fn gcd(a: i64, b: i64) -> i64 {
-    if b == 0 { a } else { gcd(b, a % b) }
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
 }
 
 fn lcm(a: i64, b: i64) -> i64 {
-    if a == 0 || b == 0 { 0 } else { a / gcd(a, b) * b }
+    if a == 0 || b == 0 {
+        0
+    } else {
+        a / gcd(a, b) * b
+    }
 }
 
 fn n_choose_r(n: u64, r: u64) -> f64 {
-    if r > n { return 0.0; }
+    if r > n {
+        return 0.0;
+    }
     let r = r.min(n - r);
     let mut result = 1.0_f64;
     for i in 0..r {
@@ -737,8 +1169,474 @@ fn n_choose_r(n: u64, r: u64) -> f64 {
     result
 }
 
+// ── Special Functions ──────────────────────────────────────────────────────────
+
+fn gamma(x: f64) -> f64 {
+    if x <= 0.0 && x.fract() == 0.0 {
+        return f64::INFINITY;
+    }
+    if x < 0.5 {
+        let pi = std::f64::consts::PI;
+        pi / ((pi * x).sin() * gamma(1.0 - x))
+    } else {
+        // Lanczos approximation, g=7, 9-term (Spouge/Wikipedia).
+        // All 9 coefficients c0..c8 must be included.
+        let xm1 = x - 1.0; // y = z - 1
+        let c0 = 0.99999999999980993;
+        let c1 = 676.5203681218851;
+        let c2 = -1259.1392167224028;
+        let c3 = 771.32342877765313;
+        let c4 = -176.61502916214059;
+        let c5 = 12.507343278686905;
+        let c6 = -0.13857109526572012;
+        let c7 = 9.9843695780195716e-6;
+        let c8 = 1.5056327351493116e-7;
+        let sum_val = c0
+            + c1 / (xm1 + 1.0)
+            + c2 / (xm1 + 2.0)
+            + c3 / (xm1 + 3.0)
+            + c4 / (xm1 + 4.0)
+            + c5 / (xm1 + 5.0)
+            + c6 / (xm1 + 6.0)
+            + c7 / (xm1 + 7.0)
+            + c8 / (xm1 + 8.0);
+        let t = xm1 + 7.5; // g=7, so t = y + g + 0.5
+        let sqrt_2pi = (2.0 * std::f64::consts::PI).sqrt();
+        sqrt_2pi * t.powf(xm1 + 0.5) * (-t).exp() * sum_val
+    }
+}
+
+fn lngamma(x: f64) -> f64 {
+    if x <= 0.0 && x.fract() == 0.0 {
+        return f64::INFINITY;
+    }
+    if x < 0.5 {
+        let pi = std::f64::consts::PI;
+        return (pi / ((pi * x).sin())).ln() - lngamma(1.0 - x);
+    }
+    // Lanczos, same g=7 coefficients as gamma().
+    // y = x - 1, so Γ(x) = Γ(y+1).
+    // ln Γ(z) = 0.5·ln(2π) + (y+0.5)·ln(t) - t + ln(A(y))
+    // where y = z-1, t = y + g + 0.5 = x + 6.5  (g=7).
+    let y = x - 1.0;
+    let t = y + 7.5; // g=7: t = y + g + 0.5
+    let ser = 0.99999999999980993
+        + 676.5203681218851    / (y + 1.0)
+        - 1259.1392167224028   / (y + 2.0)
+        + 771.32342877765313   / (y + 3.0)
+        - 176.61502916214059   / (y + 4.0)
+        + 12.507343278686905   / (y + 5.0)
+        - 0.13857109526572012  / (y + 6.0)
+        + 9.9843695780195716e-6 / (y + 7.0)
+        + 1.5056327351493116e-7 / (y + 8.0);
+    let ln_sqrt_2pi = 0.9189385332046727; // 0.5 * ln(2π)
+    ln_sqrt_2pi + (y + 0.5) * t.ln() - t + ser.ln()
+}
+
+fn beta(a: f64, b: f64) -> f64 {
+    (gamma(a) * gamma(b)) / gamma(a + b)
+}
+
+fn erf(x: f64) -> f64 {
+    // A&S 7.1.26 / Numerical Recipes:
+    //   erfc(x) = t · exp(-x² + poly(t)),  t = 1/(1 + 0.5·|x|)
+    // poly(t) = p0 + p1·t + p2·t² + ... + p9·t⁹   (p0 is a constant, NOT multiplied by x²)
+    if x == 0.0 {
+        return 0.0;
+    }
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let ax = x.abs();
+    if ax >= 6.0 {
+        return sign;
+    }
+    let t = 1.0 / (1.0 + 0.5 * ax);
+    let poly = -1.26551223
+        + t * (1.00002368
+        + t * (0.37409196
+        + t * (0.09678418
+        + t * (-0.18628806
+        + t * (0.27886807
+        + t * (-1.13520398
+        + t * (1.48851587
+        + t * (-0.82215223
+        + t * 0.17087277))))))));
+    // erfc(x) = t · exp(poly - x²),  so erf(x) = 1 - erfc(|x|)
+    let erfc_x = t * (poly - ax * ax).exp();
+    sign * (1.0 - erfc_x)
+}
+
+fn erfc(x: f64) -> f64 {
+    1.0 - erf(x)
+}
+
+fn lambert_w(x: f64, branch: i32) -> Result<f64, String> {
+    let e_inv = 1.0 / std::f64::consts::E;
+    if branch == 0 {
+        if x < -e_inv {
+            return Err("w(x): valor fuera de dominio para W0".to_string());
+        }
+        if x == 0.0 {
+            return Ok(0.0);
+        }
+        if (x + e_inv).abs() < 1e-15 {
+            return Ok(-1.0);
+        }
+        let w = if x < 0.0 && x > -e_inv {
+            let p = (2.0 * std::f64::consts::E * x + 2.0).sqrt();
+            -1.0 - p + (2.0 / 3.0) * p * p - (11.0 / 36.0) * p * p * p
+        } else if x < 3.0 {
+            x.ln()
+        } else {
+            x.ln() - x.ln().ln()
+        };
+        let mut w = w;
+        for _ in 0..20 {
+            let ew = w.exp();
+            let diff = w * ew - x;
+            if diff.abs() < 1e-15 {
+                break;
+            }
+            w -= diff / (ew * (w + 1.0));
+        }
+        Ok(w)
+    } else if branch == -1 {
+        if x > 0.0 || x < -e_inv {
+            return Err("w(x, -1): x debe estar en [-1/e, 0)".to_string());
+        }
+        if (x + e_inv).abs() < 1e-15 {
+            return Ok(-1.0);
+        }
+        let p = (-2.0 * (x * std::f64::consts::E + 1.0)).sqrt();
+        let mut w = -1.0 - p - (2.0 / 3.0) * p + (11.0 / 36.0) * p * p;
+        for _ in 0..20 {
+            let ew = w.exp();
+            let diff = w * ew - x;
+            if diff.abs() < 1e-15 {
+                break;
+            }
+            w -= diff / (ew * (w + 1.0));
+        }
+        Ok(w)
+    } else {
+        Err(format!(
+            "w(x, branch): branch debe ser 0 o -1, got {}",
+            branch
+        ))
+    }
+}
+
+fn bessel_j0(x: f64) -> f64 {
+    let ax = x.abs();
+    if ax == 0.0 {
+        return 1.0;
+    }
+    if ax < 8.0 {
+        // Rational polynomial approximation (NR §6.5): degree-5 numerator, degree-5 denominator.
+        // p6=1.0 was a spurious extra term — the reference has 6 coefficients, not 7.
+        let y = x * x;
+        let p0 = 57568490574.0_f64;
+        let p1 = -13362590354.0;
+        let p2 = 651619640.7;
+        let p3 = -11214424.18;
+        let p4 = 77392.33017;
+        let p5 = -184.9052456; // leading coefficient
+        let q0 = 57568490411.0_f64;
+        let q1 = 1029532985.0;
+        let q2 = 9494680.718;
+        let q3 = 59272.64853;
+        let q4 = 267.8532712;
+        let q5 = 1.0;
+        let p = ((((p5 * y + p4) * y + p3) * y + p2) * y + p1) * y + p0;
+        let q = ((((q5 * y + q4) * y + q3) * y + q2) * y + q1) * y + q0;
+        p / q
+    } else {
+        // Asymptotic expansion: J0(x) ≈ sqrt(2/πx)·[P0·cos(x-π/4) - Q0·sin(x-π/4)]
+        // xx = x - π/4 is the phase; z = 8/x; y = z² (used in the polynomial corrections).
+        // The trig functions must be evaluated at xx, NOT at y.
+        let z = 8.0 / ax;
+        let y = z * z;
+        let xx = ax - 0.785398164; // ax - π/4
+        let p0 = 1.0_f64;
+        let p1 = -0.1098628627e-2;
+        let p2 = 0.2734510407e-4;
+        let p3 = -0.2073370639e-5;
+        let p4 = 0.2093887211e-6;
+        let q0 = -0.1562499995e-1;
+        let q1 = 0.1430488765e-3;
+        let q2 = -0.6911147651e-5;
+        let q3 = 0.7621095161e-6;
+        let q4 = -0.934935152e-7;
+        let p = (((p4 * y + p3) * y + p2) * y + p1) * y + p0;
+        let q = (((q4 * y + q3) * y + q2) * y + q1) * y + q0;
+        (0.636619772 / ax).sqrt() * (xx.cos() * p - z * xx.sin() * q)
+    }
+}
+
+fn bessel_j1(x: f64) -> f64 {
+    let ax = x.abs();
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    if ax < 8.0 {
+        // NR §6.5: degree-5 rational polynomial, J1(x) = x * num(y) / den(y), y = x²
+        // Signs on a3 and a5 were wrong in the original; a6 was a spurious extra term.
+        let y = x * x;
+        let a0 = 72362614232.0_f64;
+        let a1 = -7895059235.0;
+        let a2 = 242396853.1;
+        let a3 = -2972611.439;
+        let a4 = 15704.48260;
+        let a5 = -30.3602086;
+        let b0 = 144725228442.0_f64;
+        let b1 = 2300535178.0;
+        let b2 = 18583304.74;
+        let b3 = 99447.43394;
+        let b4 = 376.9991397;
+        let b5 = 1.0;
+        let a = ((((a5 * y + a4) * y + a3) * y + a2) * y + a1) * y + a0;
+        let b = ((((b5 * y + b4) * y + b3) * y + b2) * y + b1) * y + b0;
+        sign * x * a / b
+    } else {
+        let z = 8.0 / ax;
+        let y = z * z;
+        let xx = ax - 2.356194491;
+        let p0 = 1.0_f64;
+        let p1 = 0.183105e-2;
+        let p2 = -0.3516396496e-4;
+        let p3 = 0.2457520174e-5;
+        let p4 = -0.240337019e-6;
+        let q0 = 0.04687499995;
+        let q1 = -0.2002690873e-3;
+        let q2 = 0.8449199096e-5;
+        let q3 = -0.88228987e-6;
+        let q4 = 0.105787413e-6;
+        let p = (((p4 * y + p3) * y + p2) * y + p1) * y + p0;
+        let q = (((q4 * y + q3) * y + q2) * y + q1) * y + q0 ;
+        let result = (0.636619772 / ax).sqrt() * (xx.cos() * p - z * xx.sin() * q);
+        sign * result
+    }
+}
+
+fn bessel_j(n: i32, x: f64) -> f64 {
+    let n = n.abs() as usize;
+    if n == 0 { return bessel_j0(x); }
+    if n == 1 { return bessel_j1(x); }
+    if x == 0.0 { return 0.0; }
+
+    // Miller's backward recurrence starting from order m >> n.
+    // We normalize using the known J0(x) from our accurate bessel_j0().
+    // At each step j (going from m-1 down to 0):
+    //   b_{j} = 2*(j+1)/x * b_{j+1} - b_{j+2}
+    // After j==n the current bj holds the unnormalized b_n.
+    // After j==0 the current bj holds the unnormalized b_0 ≡ J0 reference.
+    let ax = x.abs();
+    let m = 2 * (n + (ax as usize).max(15)) + 10;
+    let mut bjp = 0.0_f64; // b_{j+2}
+    let mut bj  = 1.0_f64; // b_{j+1}  (arbitrary start)
+    let mut bjn = 0.0_f64; // captured at j == n
+    let mut bj0 = 0.0_f64; // captured at j == 0  (≡ unnormalized J0)
+
+    for j in (0..m).rev() {
+        let bjm = 2.0 * (j + 1) as f64 / x * bj - bjp;
+        bjp = bj;
+        bj  = bjm;
+        // Rescale to prevent floating-point overflow/underflow during the sweep
+        if bj.abs() > 1e150 {
+            bj  *= 1e-150;
+            bjp *= 1e-150;
+            bjn *= 1e-150;
+            bj0 *= 1e-150;
+        }
+        // Capture the value at the requested order and at order 0
+        if j == n { bjn = bj; }
+        if j == 0 { bj0 = bj; }
+    }
+
+    if bj0.abs() < 1e-300 { return 0.0; }
+    // Normalize so that the unnormalized J0 matches the known-good J0(x)
+    bjn * bessel_j0(x) / bj0
+}
+
+fn bessel_y0(x: f64) -> f64 {
+    if x < 8.0 {
+        let y = x * x;
+        let a0 = -2957821389.0_f64;
+        let a1 = 7062834065.0;
+        let a2 = -512359803.6;
+        let a3 = 10879881.29;
+        let a4 = -86327.92757;
+        let a5 = 228.4622733;
+        let b0 = 40076544269.0_f64;
+        let b1 = 745249964.8;
+        let b2 = 7189466.438;
+        let b3 = 47447.26470;
+        let b4 = 226.1030244;
+        let b5 = 1.0;
+        let a = ((((a5 * y + a4) * y + a3) * y + a2) * y + a1) * y + a0;
+        let b = ((((b5 * y + b4) * y + b3) * y + b2) * y + b1) * y + b0;
+        a / b + 0.636619772 * bessel_j0(x) * x.ln()
+    } else {
+        let z = 8.0 / x;
+        let y = z * z;
+        let xx = x - 2.356194491;
+        let p0 = 1.0_f64;
+        let p1 = 0.183105e-2;
+        let p2 = -0.3516396496e-4;
+        let p3 = 0.2457520174e-5;
+        let p4 = -0.240337019e-6;
+        let q0 = -0.04687499995;
+        let q1 = 0.2002690873e-3;
+        let q2 = -0.8449199096e-5;
+        let q3 = 0.88228987e-6;
+        let q4 = 0.105787413e-6;
+        let p = (((p4 * y + p3) * y + p2) * y + p1) * y + p0;
+        let q = (((q4 * y + q3) * y + q2) * y + q1) * y + q0 ;
+        (0.636619772 / x).sqrt() * (xx.sin() * p + z * xx.cos() * q)
+    }
+}
+
+fn bessel_y1(x: f64) -> f64 {
+    if x < 8.0 {
+        let y = x * x;
+        let a0 = -0.4900604943e13_f64;
+        let a1 = 0.1275274392e13;
+        let a2 = -0.3433437798e11;
+        let a3 = 0.43543097e9;
+        let a4 = -0.30738782e7;
+        let a5 = 0.1326092e5;
+        let a6 = 228.4622733;
+        let b0 = 0.183105e9_f64;
+        let b1 = 0.3510166636e9;
+        let b2 = 0.2136192e7;
+        let b3 = 0.1201153e5;
+        let b4 = 0.4563251e3;
+        let b5 = 1.0;
+        let a = (((((a6 * y + a5) * y + a4) * y + a3) * y + a2) * y + a1) * y + a0;
+        let b = ((((b5 * y + b4) * y + b3) * y + b2) * y + b1) * y + b0;
+        x * a / b + 0.636619772 * (bessel_j1(x) * x.ln() - 1.0 / x)
+    } else {
+        let z = 8.0 / x;
+        let y = z * z;
+        let xx = x - 2.356194491;
+        let p0 = 1.0_f64;
+        let p1 = -0.0775428096e-2;
+        let p2 = 0.0243374518e-2;
+        let p3 = -0.3465684617e-4;
+        let p4 = 0.3108610129e-5;
+        let p5 = -0.1521757532e-6;
+        let q0 = -0.0787571232e-1;
+        let q1 = 0.4764981146e-3;
+        let q2 = -0.4080642043e-5;
+        let q3 = 0.2183015168e-6;
+        let q4 = -0.4729345032e-8;
+        let p = ((((p5 * y + p4) * y + p3) * y + p2) * y + p1) * y + p0 ;
+        let q = (((q4 * y + q3) * y + q2) * y + q1) * y + q0 ;
+        (0.636619772 / x).sqrt() * (xx.sin() * p + z * xx.cos() * q)
+    }
+}
+
+fn bessel_y(n: i32, x: f64) -> f64 {
+    let n = n.abs() as usize;
+    if n == 0 {
+        return bessel_y0(x);
+    }
+    if n == 1 {
+        return bessel_y1(x);
+    }
+    (bessel_j(n as i32, x) * bessel_y1(x) - bessel_j((n - 1) as i32, x) * bessel_y0(x)) * 2.0 / x
+}
+
+fn double_factorial(x: f64) -> f64 {
+    if x.fract() != 0.0 {
+        return f64::NAN;
+    }
+    let n = x as i64;
+    if n < 0 {
+        if n == -1 || n == -3 {
+            return 1.0;
+        }
+        return f64::NAN;
+    }
+    let mut result = 1.0;
+    let mut k = n;
+    while k > 1 {
+        result *= k as f64;
+        k -= 2;
+    }
+    result
+}
+
+/// Inverse normal CDF (Peter Acklam's rational approximation — max error 1.15e-9)
+fn normal_quantile(p: f64) -> f64 {
+    if p <= 0.0 { return f64::NEG_INFINITY; }
+    if p >= 1.0 { return f64::INFINITY; }
+
+    let a = [
+        -3.969683028665376e1_f64,  2.209460984245205e2,
+        -2.759285104469687e2,      1.383577518672690e2,
+        -3.066479806614716e1,      2.506628277459239,
+    ];
+    let b = [
+        -5.447609879822406e1_f64, 1.615858368580409e2,
+        -1.556989798598866e2,     6.680131188771972e1,
+        -1.328068155288572e1,
+    ];
+    let c = [
+        -7.784894002430293e-3_f64, -3.223964580411365e-1,
+        -2.400758277161838,        -2.549732539343734,
+         4.374664141464968,         2.938163982698783,
+    ];
+    let d = [
+        7.784695709041462e-3_f64, 3.224671290700398e-1,
+        2.445134137142996,        3.754408661907416,
+    ];
+
+    let p_lo = 0.02425_f64;
+    let p_hi = 1.0 - p_lo;
+
+    if p < p_lo {
+        let q = (-2.0 * p.ln()).sqrt();
+        (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+        ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1.0)
+    } else if p <= p_hi {
+        let q = p - 0.5;
+        let r = q * q;
+        (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q /
+        (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1.0)
+    } else {
+        let q = (-2.0 * (1.0 - p).ln()).sqrt();
+        -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+         ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1.0)
+    }
+}
+
+fn is_prime(n: u64) -> bool {
+    if n < 2 { return false; }
+    if n == 2 || n == 3 { return true; }
+    if n % 2 == 0 || n % 3 == 0 { return false; }
+    let mut i = 5u64;
+    while i * i <= n {
+        if n % i == 0 || n % (i + 2) == 0 { return false; }
+        i += 6;
+    }
+    true
+}
+
+fn binomial_coeff(n: u64, k: u64) -> f64 {
+    if k > n {
+        return 0.0;
+    }
+    if k == 0 || k == n {
+        return 1.0;
+    }
+    let k = k.min(n - k);
+    (1..=k).fold(1.0_f64, |acc, i| acc * (n - k + i) as f64 / i as f64)
+}
+
 /// Execute a list of statements, mutating the scope, and return the last value.
-pub fn exec_stmts(stmts: &[Stmt], scope: &mut Scope, angle_mode: &str) -> Result<Vec<(Option<String>, Value)>, String> {
+pub fn exec_stmts(
+    stmts: &[Stmt],
+    scope: &mut Scope,
+    angle_mode: &str,
+) -> Result<Vec<(Option<String>, Value)>, String> {
     let mut results = Vec::new();
     for stmt in stmts {
         match stmt {
@@ -777,5 +1675,68 @@ pub fn eval_at_x(src: &str, x: f64, scope: &Scope, angle_mode: &str) -> Result<f
         Value::Real(r) => Ok(r),
         Value::Complex(c) if c.im.abs() < 1e-10 => Ok(c.re),
         _ => Ok(f64::NAN),
+    }
+}
+// Paste at end of eval.rs temporarily to test, then remove
+#[cfg(test)]
+mod special_fn_tests {
+    use super::*;
+
+    fn rel_err(got: f64, expected: f64) -> f64 {
+        ((got - expected) / expected).abs()
+    }
+
+    #[test]
+    fn test_gamma() {
+        // Γ(1) = 1, Γ(0.5) = √π, Γ(5) = 24, Γ(1.5) = √π/2
+        assert!(rel_err(gamma(1.0), 1.0) < 1e-12, "gamma(1)={}", gamma(1.0));
+        assert!(rel_err(gamma(0.5), std::f64::consts::PI.sqrt()) < 1e-12, "gamma(0.5)={}", gamma(0.5));
+        assert!(rel_err(gamma(5.0), 24.0) < 1e-12, "gamma(5)={}", gamma(5.0));
+        assert!(rel_err(gamma(1.5), std::f64::consts::PI.sqrt() / 2.0) < 1e-12, "gamma(1.5)={}", gamma(1.5));
+    }
+
+    #[test]
+    fn test_lngamma() {
+        // ln Γ(1)=0, ln Γ(5)=ln(24)
+        assert!(lngamma(1.0).abs() < 1e-12, "lngamma(1)={}", lngamma(1.0));
+        assert!(rel_err(lngamma(5.0), 24.0_f64.ln()) < 1e-12, "lngamma(5)={}", lngamma(5.0));
+        // cross-check with gamma
+        for x in [0.5_f64, 1.0, 2.0, 5.0, 10.0, 20.0] {
+            let diff = (lngamma(x) - gamma(x).ln()).abs();
+            assert!(diff < 1e-10, "lngamma({x}) vs ln(gamma({x})): diff={diff}");
+        }
+    }
+
+    #[test]
+    fn test_erf() {
+        // erf(0)=0, erf(∞)=1, erf(1)≈0.8427007929, erf(-1)=-erf(1)
+        assert!(erf(0.0).abs() < 1e-15, "erf(0)={}", erf(0.0));
+        assert!(rel_err(erf(1.0), 0.8427007929497148) < 1e-8, "erf(1)={}", erf(1.0));
+        assert!(rel_err(erf(-1.0), -0.8427007929497148) < 1e-8, "erf(-1)={}", erf(-1.0));
+        assert!(rel_err(erf(3.0), 0.9999779095030014) < 1e-7, "erf(3)={}", erf(3.0));
+    }
+
+    #[test]
+    fn test_bessel_j0() {
+        // J0(0)=1, J0(2.4048)≈0, J0(2)≈0.22389
+        assert!(rel_err(bessel_j0(0.0), 1.0) < 1e-10, "J0(0)={}", bessel_j0(0.0));
+        assert!(bessel_j0(2.4048255576957727).abs() < 1e-5, "J0(first zero)={}", bessel_j0(2.4048255576957727));
+        assert!(rel_err(bessel_j0(2.0), 0.2238907791412357) < 1e-6, "J0(2)={}", bessel_j0(2.0)); // NR deg-5 poly ≈1e-7 accuracy
+        // Large x
+        assert!(rel_err(bessel_j0(10.0), -0.24593576445134832) < 1e-8, "J0(10)={}", bessel_j0(10.0));
+    }
+
+    #[test]
+    fn test_bessel_j1() {
+        assert!(bessel_j1(0.0).abs() < 1e-15, "J1(0)={}", bessel_j1(0.0));
+        assert!(rel_err(bessel_j1(1.0), 0.44005058574493355) < 1e-8, "J1(1)={}", bessel_j1(1.0));
+        assert!(rel_err(bessel_j1(10.0), 0.04347274616886144) < 1e-7, "J1(10)={}", bessel_j1(10.0));
+    }
+
+    #[test]
+    fn test_bessel_jn() {
+        // J2(1)≈0.11490348, J3(3)≈0.30906272
+        assert!(rel_err(bessel_j(2, 1.0), 0.11490348493190048) < 1e-6, "J2(1)={}", bessel_j(2, 1.0));
+        assert!(rel_err(bessel_j(3, 3.0), 0.30906272225525164) < 1e-6, "J3(3)={}", bessel_j(3, 3.0));
     }
 }

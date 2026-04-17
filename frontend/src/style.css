@@ -1410,3 +1410,349 @@ input[type=number] {
   border-color: rgba(52, 132, 226, 0.35);
   color: var(--accent);
 }
+
+/* ── Graph polar toggle ────────────────────────────── */
+.graph-polar-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-bright);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 7px;
+  height: 30px;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.graph-polar-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-subtle);
+}
+.graph-polar-btn.active {
+  background: var(--accent-soft);
+  border-color: rgba(52, 132, 226, 0.4);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Chemistry mode ────────────────────────────────── */
+.chem-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.chem-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chem-scroll::-webkit-scrollbar { width: 4px; }
+.chem-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+}
+
+.chem-card {
+  background: var(--surface);
+  border: 1px solid var(--border-bright);
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chem-card-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  letter-spacing: 0.01em;
+  margin-bottom: 2px;
+}
+
+.chem-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chem-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.chem-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text-main);
+  font-size: 13px;
+  font-family: var(--font-main);
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.12s;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.chem-input:focus {
+  border-color: var(--accent);
+  background: rgba(52, 132, 226, 0.06);
+}
+.chem-input::placeholder {
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+/* Allow number inputs in chemistry to scroll */
+.chem-input[type="number"] {
+  -moz-appearance: textfield;
+}
+.chem-input[type="number"]::-webkit-outer-spin-button,
+.chem-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.chem-select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text-subtle);
+  font-size: 12px;
+  padding: 5px 6px;
+  outline: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.chem-select:focus { border-color: var(--accent); }
+
+.chem-btn {
+  background: var(--accent-soft);
+  border: 1px solid rgba(52, 132, 226, 0.25);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  flex-shrink: 0;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+.chem-btn:hover { background: rgba(52, 132, 226, 0.22); }
+.chem-btn:active { background: rgba(52, 132, 226, 0.30); }
+.chem-btn-wide { width: 100%; justify-content: center; }
+
+.chem-unit-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.chem-result {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-main);
+  line-height: 1.6;
+  min-height: 36px;
+}
+.chem-result:empty { display: none; }
+
+.chem-big {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+.chem-unit {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+.chem-dim {
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+.chem-err {
+  color: #e05050;
+  font-size: 12px;
+}
+
+/* Molar mass breakdown table */
+.chem-breakdown:empty { display: none; }
+.chem-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  margin-top: 4px;
+}
+.chem-table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 10.5px;
+  padding: 3px 6px 3px 0;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.chem-table td {
+  padding: 4px 6px 4px 0;
+  color: var(--text-subtle);
+  border-bottom: 1px solid rgba(146, 188, 245, 0.04);
+}
+.chem-table td:first-child { color: var(--text-main); }
+
+/* Gas law grid */
+.chem-gas-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.chem-gas-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chem-gas-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chem-gas-row .chem-input { min-width: 0; }
+.chem-gas-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  opacity: 0.8;
+}
+.chem-gas-result-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.chem-gas-result-grid strong { color: var(--text-main); }
+.chem-solved {
+  background: rgba(52, 132, 226, 0.10);
+  border-radius: 5px;
+  padding: 2px 8px;
+  border-left: 2px solid var(--accent);
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* Element lookup card */
+.chem-elem-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-top: 6px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid var(--border-bright);
+}
+.chem-elem-badge {
+  width: 62px;
+  height: 72px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  border: 1px solid rgba(52, 132, 226, 0.25);
+}
+.chem-elem-z {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.chem-elem-sym {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.1;
+}
+.chem-elem-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+.chem-elem-detail {
+  font-size: 12px;
+  color: var(--text-subtle);
+  line-height: 1.6;
+}
+
+/* Element category colors */
+.cat-alkali    { background: rgba(224, 90, 50, 0.15); border-color: rgba(224, 90, 50, 0.3); }
+.cat-alkaline  { background: rgba(224, 160, 50, 0.15); border-color: rgba(224, 160, 50, 0.3); }
+.cat-transition{ background: rgba(52, 132, 226, 0.15); border-color: rgba(52, 132, 226, 0.3); }
+.cat-post-transition { background: rgba(100, 180, 100, 0.15); border-color: rgba(100, 180, 100, 0.3); }
+.cat-metalloid { background: rgba(150, 100, 220, 0.15); border-color: rgba(150, 100, 220, 0.3); }
+.cat-nonmetal  { background: rgba(50, 200, 150, 0.15); border-color: rgba(50, 200, 150, 0.3); }
+.cat-halogen   { background: rgba(80, 200, 220, 0.15); border-color: rgba(80, 200, 220, 0.3); }
+.cat-noble     { background: rgba(200, 80, 200, 0.15); border-color: rgba(200, 80, 200, 0.3); }
+.cat-lanthanide{ background: rgba(200, 160, 80, 0.15); border-color: rgba(200, 160, 80, 0.3); }
+.cat-actinide  { background: rgba(200, 100, 100, 0.15); border-color: rgba(200, 100, 100, 0.3); }
+
+/* pH calculator */
+.chem-ph-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.chem-ph-tab {
+  background: var(--btn-special);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 4px 10px;
+  transition: all 0.12s;
+}
+.chem-ph-tab:hover { color: var(--text-subtle); background: var(--btn-bg-hover); }
+.chem-ph-tab.active {
+  background: var(--accent-soft);
+  border-color: rgba(52, 132, 226, 0.3);
+  color: var(--accent);
+  font-weight: 600;
+}
+.chem-ph-panel { display: flex; flex-direction: column; gap: 8px; }
+
+.chem-ph-display {
+  text-align: center;
+  padding: 8px 0;
+}
+.chem-ph-value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.chem-ph-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  justify-content: center;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.chem-ph-label {
+  font-weight: 700;
+  font-size: 13px;
+}

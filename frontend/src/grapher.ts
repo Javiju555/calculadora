@@ -10,6 +10,8 @@ export interface GraphView {
 export interface FnEntry {
   expr: string;
   color: string;
+  polar?: boolean;    // if true, interpret as r = f(θ), plot in polar coordinates
+  thetaMax?: number;  // max θ for polar plots (default 2π)
 }
 
 const FN_COLORS = ["#3858e8", "#e02858", "#18d880", "#9035d8", "#f0a030"];
@@ -215,8 +217,12 @@ export function createGrapher(
     drawAxes(ctx, w, h, view, toX, toY);
     functions.forEach(fn => {
       if (!fn.expr.trim()) return;
-      const zeros = plotFunction(ctx, w, h, fn.expr, fn.color, view, toX, toY, angleMode());
-      drawZeros(ctx, zeros, fn.color, toX, toY);
+      if (fn.polar) {
+        plotPolar(ctx, w, h, fn.expr, fn.color, fn.thetaMax ?? 2 * Math.PI, view, toX, toY);
+      } else {
+        const zeros = plotFunction(ctx, w, h, fn.expr, fn.color, view, toX, toY, angleMode());
+        drawZeros(ctx, zeros, fn.color, toX, toY);
+      }
     });
     
     // Draw crosshair if hovering
@@ -246,6 +252,8 @@ export function createGrapher(
     functions = fns.map((fn, i) => ({
       expr: fn.expr,
       color: fn.color || FN_COLORS[i % FN_COLORS.length],
+      polar: fn.polar ?? false,
+      thetaMax: fn.thetaMax ?? 2 * Math.PI,
     }));
     redraw();
   }
@@ -440,4 +448,50 @@ function fmtCoord(v: number): string {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(Math.max(v, lo), hi);
+}
+
+/** Plot a polar curve r = f(θ) by converting to Cartesian parametrically */
+function plotPolar(
+  ctx: CanvasRenderingContext2D,
+  _w: number, _h: number,
+  expr: string,
+  color: string,
+  thetaMax: number,
+  _view: GraphView,
+  toX: (x: number) => number,
+  toY: (y: number) => number,
+): void {
+  // Use RAD mode for polar (θ is always in radians)
+  const steps = 2000;
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  let penDown = false;
+
+  for (let s = 0; s <= steps; s++) {
+    const theta = (thetaMax) * s / steps;
+    let r: number | null = null;
+    try {
+      // Evaluate expr with theta as the variable (use "x" for compat, can also use "t")
+      const result = evalExpression(expr, "RAD", theta);
+      if (typeof result.value === "number") {
+        r = result.value;
+      } else if (Math.abs((result.value as any).im) < 1e-9) {
+        r = (result.value as any).re;
+      }
+      if (r !== null && !isFinite(r)) r = null;
+    } catch { r = null; }
+
+    if (r === null) { penDown = false; continue; }
+
+    const cartX = r * Math.cos(theta);
+    const cartY = r * Math.sin(theta);
+    const cx = toX(cartX);
+    const cy = toY(cartY);
+
+    if (!penDown) { ctx.moveTo(cx, cy); penDown = true; }
+    else { ctx.lineTo(cx, cy); }
+  }
+  ctx.stroke();
 }

@@ -11,9 +11,16 @@ import { createGrapher, type FnEntry } from "./grapher.ts";
 import { casExec, casDiff, casIntegrate, casClear, casVars, type StmtResult } from "./cas.ts";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
+import {
+  findElement, parseMolarMass, solveGasLaw,
+  toPascal, fromPascal, toM3, fromM3, toKelvin, fromKelvin,
+  strongAcidPH, strongBasePH, weakAcidPH, weakBasePH, bufferPH,
+  pHFromConc, concFromPH, fmtChem, CAT_LABELS,
+  type GasState,
+} from "./chemistry.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────
-type Mode = "basic" | "scientific" | "conversions" | "graph" | "engineering";
+type Mode = "basic" | "scientific" | "conversions" | "graph" | "engineering" | "quimica";
 type NumberMode = "normal" | "sup" | "sub";
 
 interface HistoryEntry {
@@ -89,6 +96,7 @@ const WINDOW_SIZES: Record<Mode, [number, number]> = {
   conversions: [480, 720],
   graph: [980, 740],
   engineering: [980, 820],
+  quimica: [560, 840],
 };
 
 // Disable context menu (no reload/inspect in production)
@@ -150,7 +158,7 @@ function buildShell(): void {
       </div>
     </div>
     <div class="mode-tabs">
-      ${(["basic", "scientific", "conversions", "graph", "engineering"] as Mode[]).map(m => `
+      ${(["basic", "scientific", "conversions", "graph", "engineering", "quimica"] as Mode[]).map(m => `
         <button class="mode-tab" data-mode="${m}">${tabLabel(m)}</button>
       `).join("")}
     </div>
@@ -531,6 +539,7 @@ function tabLabel(m: Mode): string {
     conversions: "Conversiones",
     graph: "Gráficos",
     engineering: "Ingeniería",
+    quimica: "Química",
   }[m];
 }
 
@@ -580,6 +589,9 @@ function setMode(m: Mode): void {
     resizeForCurrentMode();
   } else if (m === "engineering") {
     c.appendChild(buildEngineeringLayout());
+    resizeForCurrentMode();
+  } else if (m === "quimica") {
+    c.appendChild(buildChemistryLayout());
     resizeForCurrentMode();
   } else {
     c.appendChild(buildGraphLayout());
@@ -1891,7 +1903,54 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>simplify</code> simplificar</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Utilidades</div>
+          <div class="eng-help-cat">Distribuciones</div>
+          <div class="eng-help-row"><code>normpdf(x, μ, σ)</code> PDF normal</div>
+          <div class="eng-help-row"><code>normcdf(x, μ, σ)</code> CDF normal</div>
+          <div class="eng-help-row"><code>norminv(p, μ, σ)</code> cuantil normal</div>
+          <div class="eng-help-row"><code>poissonpmf(k, λ)</code> PMF Poisson</div>
+          <div class="eng-help-row"><code>binompmf(k, n, p)</code> PMF binomial</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Electrónica / RF</div>
+          <div class="eng-help-row"><code>db(x)</code> ratio → dB</div>
+          <div class="eng-help-row"><code>from_db(dB)</code> dB → ratio</div>
+          <div class="eng-help-row"><code>dbm(W)</code> vatios → dBm</div>
+          <div class="eng-help-row"><code>from_dbm(dBm)</code> dBm → W</div>
+          <div class="eng-help-row"><code>parallel(R1,R2,...)</code> R paralelas</div>
+          <div class="eng-help-row"><code>rms(a,b,...)</code> valor eficaz</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Constantes físicas/quím.</div>
+          <div class="eng-help-row"><code>c</code> vel. luz (m/s)</div>
+          <div class="eng-help-row"><code>h</code> Planck (J·s)</div>
+          <div class="eng-help-row"><code>hbar</code> ℏ reducida</div>
+          <div class="eng-help-row"><code>k</code> Boltzmann (J/K)</div>
+          <div class="eng-help-row"><code>Na</code> Avogadro (mol⁻¹)</div>
+          <div class="eng-help-row"><code>R</code> gas ideal (J/mol·K)</div>
+          <div class="eng-help-row"><code>G</code> gravitacional</div>
+          <div class="eng-help-row"><code>g</code> gravedad estándar</div>
+          <div class="eng-help-row"><code>Fa</code> Faraday (C/mol)</div>
+          <div class="eng-help-row"><code>Vm</code> vol. molar STP (m³/mol)</div>
+          <div class="eng-help-row"><code>atm</code> 1 atm en Pa</div>
+          <div class="eng-help-row"><code>epsilon0 mu0</code> vacío</div>
+          <div class="eng-help-row"><code>me mp mn</code> masas part.</div>
+          <div class="eng-help-row"><code>e_charge</code> carga electrón</div>
+          <div class="eng-help-row"><code>sigma</code> Stefan-Boltzmann</div>
+          <div class="eng-help-row"><code>alpha</code> estructura fina</div>
+          <div class="eng-help-row"><code>a0</code> radio de Bohr</div>
+          <div class="eng-help-row"><code>deg2rad rad2deg</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Funciones esp. / Utilidades</div>
+          <div class="eng-help-row"><code>gamma(x)</code> Γ función</div>
+          <div class="eng-help-row"><code>erf(x) erfc(x)</code></div>
+          <div class="eng-help-row"><code>beta(a,b)</code></div>
+          <div class="eng-help-row"><code>besselj(n,x)</code> Bessel J</div>
+          <div class="eng-help-row"><code>bessely(n,x)</code> Bessel Y</div>
+          <div class="eng-help-row"><code>w(x)</code> Lambert W</div>
+          <div class="eng-help-row"><code>sinc(x)</code> sin(x)/x</div>
+          <div class="eng-help-row"><code>nthroot(n, x)</code> raíz n-ésima</div>
+          <div class="eng-help-row"><code>isprime(n)</code> ¿es primo?</div>
           <div class="eng-help-row"><code>clamp(x, min, max)</code></div>
           <div class="eng-help-row"><code>lerp(a, b, t)</code></div>
           <div class="eng-help-row"><code>sign(x)</code></div>
@@ -2206,6 +2265,385 @@ function buildGraphLayout(): HTMLElement {
   return wrap;
 }
 
+// ── Chemistry layout ───────────────────────────────────────────────────
+function buildChemistryLayout(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "chem-layout";
+
+  wrap.innerHTML = `
+    <div class="chem-scroll">
+
+      <!-- ── Molar Mass ── -->
+      <div class="chem-card">
+        <div class="chem-card-title">⚗ Masa Molar</div>
+        <div class="chem-row">
+          <input class="chem-input" id="chem-mm-formula" placeholder="H2O, C6H12O6, (NH4)2SO4…" autocomplete="off" spellcheck="false" />
+          <button class="chem-btn" id="chem-mm-calc">Calcular</button>
+        </div>
+        <div class="chem-result chem-mm-result" id="chem-mm-result"></div>
+        <div class="chem-breakdown" id="chem-mm-breakdown"></div>
+      </div>
+
+      <!-- ── Gas Law ── -->
+      <div class="chem-card">
+        <div class="chem-card-title">🔵 Ley del Gas Ideal · PV = nRT</div>
+        <div class="chem-gas-grid">
+          <div class="chem-gas-field">
+            <label class="chem-label">P (Presión)</label>
+            <div class="chem-gas-row">
+              <input class="chem-input chem-gas-input" id="gas-P" placeholder="—" type="number" min="0" />
+              <select class="chem-select" id="gas-P-unit">
+                <option>Pa</option><option>kPa</option><option>MPa</option>
+                <option selected>atm</option><option>bar</option>
+                <option>mmHg</option><option>psi</option>
+              </select>
+            </div>
+          </div>
+          <div class="chem-gas-field">
+            <label class="chem-label">V (Volumen)</label>
+            <div class="chem-gas-row">
+              <input class="chem-input chem-gas-input" id="gas-V" placeholder="—" type="number" min="0" />
+              <select class="chem-select" id="gas-V-unit">
+                <option>m³</option><option selected>L</option>
+                <option>mL</option><option>cm³</option>
+              </select>
+            </div>
+          </div>
+          <div class="chem-gas-field">
+            <label class="chem-label">n (Moles)</label>
+            <div class="chem-gas-row">
+              <input class="chem-input chem-gas-input" id="gas-n" placeholder="—" type="number" min="0" />
+              <span class="chem-unit-label">mol</span>
+            </div>
+          </div>
+          <div class="chem-gas-field">
+            <label class="chem-label">T (Temperatura)</label>
+            <div class="chem-gas-row">
+              <input class="chem-input chem-gas-input" id="gas-T" placeholder="—" type="number" />
+              <select class="chem-select" id="gas-T-unit">
+                <option>K</option><option selected>°C</option><option>°F</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="chem-gas-hint">Deja un campo en blanco para calcularlo</div>
+        <button class="chem-btn chem-btn-wide" id="gas-calc">Resolver</button>
+        <div class="chem-result" id="gas-result"></div>
+      </div>
+
+      <!-- ── Element Lookup ── -->
+      <div class="chem-card">
+        <div class="chem-card-title">🔬 Elemento Químico</div>
+        <div class="chem-row">
+          <input class="chem-input" id="chem-elem-search" placeholder="Símbolo (Fe), nombre (Hierro) o número (26)…" autocomplete="off" />
+          <button class="chem-btn" id="chem-elem-btn">Buscar</button>
+        </div>
+        <div id="chem-elem-result"></div>
+      </div>
+
+      <!-- ── pH Calculator ── -->
+      <div class="chem-card">
+        <div class="chem-card-title">🧪 Calculadora de pH</div>
+        <div class="chem-ph-tabs">
+          <button class="chem-ph-tab active" data-tab="strong">Ácido/base fuerte</button>
+          <button class="chem-ph-tab" data-tab="weak">Ácido/base débil</button>
+          <button class="chem-ph-tab" data-tab="buffer">Buffer (H-H)</button>
+          <button class="chem-ph-tab" data-tab="conv">Conversión</button>
+        </div>
+
+        <div class="chem-ph-panel" id="ph-panel-strong">
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">Tipo:</label>
+            <select class="chem-select" id="ph-strong-type" style="flex:1">
+              <option value="acid">Ácido fuerte</option>
+              <option value="base">Base fuerte</option>
+            </select>
+          </div>
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">Concentración (mol/L):</label>
+            <input class="chem-input" id="ph-strong-conc" type="number" placeholder="0.1" min="0" style="flex:1" />
+          </div>
+          <button class="chem-btn chem-btn-wide" id="ph-strong-calc">Calcular pH</button>
+          <div class="chem-result" id="ph-strong-result"></div>
+        </div>
+
+        <div class="chem-ph-panel" id="ph-panel-weak" style="display:none">
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">Tipo:</label>
+            <select class="chem-select" id="ph-weak-type" style="flex:1">
+              <option value="acid">Ácido débil</option>
+              <option value="base">Base débil</option>
+            </select>
+          </div>
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">Ka o Kb:</label>
+            <input class="chem-input" id="ph-weak-k" type="number" placeholder="1.8e-5" min="0" style="flex:1" />
+          </div>
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">Concentración (mol/L):</label>
+            <input class="chem-input" id="ph-weak-conc" type="number" placeholder="0.1" min="0" style="flex:1" />
+          </div>
+          <button class="chem-btn chem-btn-wide" id="ph-weak-calc">Calcular pH</button>
+          <div class="chem-result" id="ph-weak-result"></div>
+        </div>
+
+        <div class="chem-ph-panel" id="ph-panel-buffer" style="display:none">
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">pKa:</label>
+            <input class="chem-input" id="ph-buf-pka" type="number" placeholder="4.74" style="flex:1" />
+          </div>
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">[A⁻] base conjugada:</label>
+            <input class="chem-input" id="ph-buf-base" type="number" placeholder="0.1" min="0" style="flex:1" />
+          </div>
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:140px">[HA] ácido:</label>
+            <input class="chem-input" id="ph-buf-acid" type="number" placeholder="0.1" min="0" style="flex:1" />
+          </div>
+          <button class="chem-btn chem-btn-wide" id="ph-buf-calc">Calcular pH buffer</button>
+          <div class="chem-result" id="ph-buf-result"></div>
+        </div>
+
+        <div class="chem-ph-panel" id="ph-panel-conv" style="display:none">
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:80px">pH:</label>
+            <input class="chem-input" id="ph-conv-ph" type="number" placeholder="7" style="flex:1" />
+            <button class="chem-btn" id="ph-from-ph">→ [H⁺]</button>
+          </div>
+          <div class="chem-row">
+            <label class="chem-label" style="min-width:80px">[H⁺] mol/L:</label>
+            <input class="chem-input" id="ph-conv-conc" type="number" placeholder="1e-7" min="0" style="flex:1" />
+            <button class="chem-btn" id="ph-from-conc">→ pH</button>
+          </div>
+          <div class="chem-result" id="ph-conv-result"></div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    // ── Molar Mass logic ──────────────────────────────────────
+    const mmInput = wrap.querySelector<HTMLInputElement>("#chem-mm-formula")!;
+    const mmResult = wrap.querySelector<HTMLElement>("#chem-mm-result")!;
+    const mmBreakdown = wrap.querySelector<HTMLElement>("#chem-mm-breakdown")!;
+
+    function calcMolarMass() {
+      const formula = mmInput.value.trim();
+      if (!formula) { mmResult.textContent = ""; mmBreakdown.innerHTML = ""; return; }
+      const res = parseMolarMass(formula);
+      if (res.error) {
+        mmResult.innerHTML = `<span class="chem-err">${escapeHtml(res.error)}</span>`;
+        mmBreakdown.innerHTML = "";
+        return;
+      }
+      mmResult.innerHTML = `<span class="chem-big">${fmtChem(res.mass, 6)}</span> <span class="chem-unit">g/mol</span>`;
+      mmBreakdown.innerHTML = `
+        <table class="chem-table">
+          <thead><tr><th>Elemento</th><th>N</th><th>Masa atómica</th><th>Contribución</th><th>%</th></tr></thead>
+          <tbody>
+            ${res.breakdown.map(b => `
+              <tr>
+                <td><strong>${escapeHtml(b.sym)}</strong></td>
+                <td>${b.count}</td>
+                <td>${fmtChem(b.massPerAtom, 6)} u</td>
+                <td>${fmtChem(b.totalMass, 6)} u</td>
+                <td>${(b.totalMass / res.mass * 100).toFixed(2)}%</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>`;
+    }
+
+    wrap.querySelector("#chem-mm-calc")!.addEventListener("click", calcMolarMass);
+    mmInput.addEventListener("keydown", e => { if (e.key === "Enter") calcMolarMass(); });
+
+    // ── Gas Law logic ─────────────────────────────────────────
+    const gasResult = wrap.querySelector<HTMLElement>("#gas-result")!;
+
+    wrap.querySelector("#gas-calc")!.addEventListener("click", () => {
+      const pStr = (wrap.querySelector<HTMLInputElement>("#gas-P")!).value.trim();
+      const vStr = (wrap.querySelector<HTMLInputElement>("#gas-V")!).value.trim();
+      const nStr = (wrap.querySelector<HTMLInputElement>("#gas-n")!).value.trim();
+      const tStr = (wrap.querySelector<HTMLInputElement>("#gas-T")!).value.trim();
+      const pUnit = (wrap.querySelector<HTMLSelectElement>("#gas-P-unit")!).value;
+      const vUnit = (wrap.querySelector<HTMLSelectElement>("#gas-V-unit")!).value;
+      const tUnit = (wrap.querySelector<HTMLSelectElement>("#gas-T-unit")!).value;
+
+      const state: GasState = {
+        P: pStr ? toPascal(parseFloat(pStr), pUnit) : null,
+        V: vStr ? toM3(parseFloat(vStr), vUnit) : null,
+        n: nStr ? parseFloat(nStr) : null,
+        T: tStr ? toKelvin(parseFloat(tStr), tUnit) : null,
+      };
+
+      const res = solveGasLaw(state);
+      if (res.error) {
+        gasResult.innerHTML = `<span class="chem-err">${escapeHtml(res.error)}</span>`;
+        return;
+      }
+
+      const formatGasVal = (varName: "P"|"V"|"n"|"T") => {
+        const val = res[varName]!;
+        const isSolved = res.solvedVar === varName;
+        switch (varName) {
+          case "P": return `${isSolved ? "→ " : ""}<strong>P</strong> = ${fmtChem(fromPascal(val, pUnit))} ${pUnit} <span class="chem-dim">(${fmtChem(val)} Pa)</span>`;
+          case "V": return `${isSolved ? "→ " : ""}<strong>V</strong> = ${fmtChem(fromM3(val, vUnit))} ${vUnit} <span class="chem-dim">(${fmtChem(val)} m³)</span>`;
+          case "n": return `${isSolved ? "→ " : ""}<strong>n</strong> = ${fmtChem(val)} mol`;
+          case "T": return `${isSolved ? "→ " : ""}<strong>T</strong> = ${fmtChem(fromKelvin(val, tUnit))} ${tUnit} <span class="chem-dim">(${fmtChem(val)} K)</span>`;
+        }
+      };
+
+      gasResult.innerHTML = `
+        <div class="chem-gas-result-grid">
+          <div class="${res.solvedVar === "P" ? "chem-solved" : ""}">${formatGasVal("P")}</div>
+          <div class="${res.solvedVar === "V" ? "chem-solved" : ""}">${formatGasVal("V")}</div>
+          <div class="${res.solvedVar === "n" ? "chem-solved" : ""}">${formatGasVal("n")}</div>
+          <div class="${res.solvedVar === "T" ? "chem-solved" : ""}">${formatGasVal("T")}</div>
+        </div>`;
+
+      // Fill solved value back into input
+      if (res.solvedVar === "P") {
+        (wrap.querySelector<HTMLInputElement>("#gas-P")!).value = String(parseFloat(fmtChem(fromPascal(res.P!, pUnit))));
+      } else if (res.solvedVar === "V") {
+        (wrap.querySelector<HTMLInputElement>("#gas-V")!).value = String(parseFloat(fmtChem(fromM3(res.V!, vUnit))));
+      } else if (res.solvedVar === "n") {
+        (wrap.querySelector<HTMLInputElement>("#gas-n")!).value = String(parseFloat(fmtChem(res.n!)));
+      } else if (res.solvedVar === "T") {
+        (wrap.querySelector<HTMLInputElement>("#gas-T")!).value = String(parseFloat(fmtChem(fromKelvin(res.T!, tUnit))));
+      }
+    });
+
+    // ── Element Lookup logic ──────────────────────────────────
+    const elemSearch = wrap.querySelector<HTMLInputElement>("#chem-elem-search")!;
+    const elemResult = wrap.querySelector<HTMLElement>("#chem-elem-result")!;
+
+    function lookupElement() {
+      const q = elemSearch.value.trim();
+      if (!q) { elemResult.innerHTML = ""; return; }
+      const elem = findElement(q);
+      if (!elem) {
+        elemResult.innerHTML = `<div class="chem-err">Elemento no encontrado: "${escapeHtml(q)}"</div>`;
+        return;
+      }
+      const catLabel = CAT_LABELS[elem.cat] ?? elem.cat;
+      const catClass = `cat-${elem.cat}`;
+      elemResult.innerHTML = `
+        <div class="chem-elem-card">
+          <div class="chem-elem-badge ${catClass}">
+            <div class="chem-elem-z">${elem.z}</div>
+            <div class="chem-elem-sym">${escapeHtml(elem.sym)}</div>
+          </div>
+          <div class="chem-elem-info">
+            <div class="chem-elem-name">${escapeHtml(elem.name)}</div>
+            <div class="chem-elem-detail">Masa atómica: <strong>${fmtChem(elem.mass, 6)} u</strong> (g/mol)</div>
+            <div class="chem-elem-detail">Período: ${elem.period}${elem.group > 0 ? `  · Grupo: ${elem.group}` : ""}</div>
+            <div class="chem-elem-detail">Categoría: ${catLabel}</div>
+            <div class="chem-elem-detail chem-dim">1 mol = ${fmtChem(elem.mass, 6)} g</div>
+          </div>
+        </div>`;
+    }
+
+    wrap.querySelector("#chem-elem-btn")!.addEventListener("click", lookupElement);
+    elemSearch.addEventListener("keydown", e => { if (e.key === "Enter") lookupElement(); });
+
+    // ── pH tabs ────────────────────────────────────────────────
+    const phPanels: Record<string, HTMLElement> = {
+      strong: wrap.querySelector("#ph-panel-strong")!,
+      weak:   wrap.querySelector("#ph-panel-weak")!,
+      buffer: wrap.querySelector("#ph-panel-buffer")!,
+      conv:   wrap.querySelector("#ph-panel-conv")!,
+    };
+
+    wrap.querySelectorAll<HTMLButtonElement>(".chem-ph-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        wrap.querySelectorAll(".chem-ph-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        const panel = tab.dataset.tab!;
+        Object.values(phPanels).forEach(p => (p.style.display = "none"));
+        phPanels[panel].style.display = "";
+      });
+    });
+
+    // Strong acid/base
+    wrap.querySelector("#ph-strong-calc")!.addEventListener("click", () => {
+      const c = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-strong-conc")!).value);
+      const type = (wrap.querySelector<HTMLSelectElement>("#ph-strong-type")!).value;
+      const res = wrap.querySelector<HTMLElement>("#ph-strong-result")!;
+      if (isNaN(c) || c <= 0) { res.innerHTML = `<span class="chem-err">Concentración inválida</span>`; return; }
+      const ph = type === "acid" ? strongAcidPH(c) : strongBasePH(c);
+      const poh = 14 - ph;
+      res.innerHTML = renderPhResult(ph, poh);
+    });
+
+    // Weak acid/base
+    wrap.querySelector("#ph-weak-calc")!.addEventListener("click", () => {
+      const k = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-weak-k")!).value);
+      const c = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-weak-conc")!).value);
+      const type = (wrap.querySelector<HTMLSelectElement>("#ph-weak-type")!).value;
+      const res = wrap.querySelector<HTMLElement>("#ph-weak-result")!;
+      if (isNaN(k) || k <= 0 || isNaN(c) || c <= 0) { res.innerHTML = `<span class="chem-err">Valores inválidos</span>`; return; }
+      const ph = type === "acid" ? weakAcidPH(k, c) : weakBasePH(k, c);
+      const poh = 14 - ph;
+      res.innerHTML = isNaN(ph)
+        ? `<span class="chem-err">Error en cálculo (verifica Ka/Kb y concentración)</span>`
+        : renderPhResult(ph, poh);
+    });
+
+    // Buffer (Henderson-Hasselbalch)
+    wrap.querySelector("#ph-buf-calc")!.addEventListener("click", () => {
+      const pka = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-buf-pka")!).value);
+      const base = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-buf-base")!).value);
+      const acid = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-buf-acid")!).value);
+      const res = wrap.querySelector<HTMLElement>("#ph-buf-result")!;
+      if (isNaN(pka) || isNaN(base) || isNaN(acid) || acid <= 0 || base <= 0) {
+        res.innerHTML = `<span class="chem-err">Valores inválidos</span>`; return;
+      }
+      const ph = bufferPH(pka, base, acid);
+      res.innerHTML = `
+        ${renderPhResult(ph, 14 - ph)}
+        <div class="chem-dim" style="margin-top:4px">Henderson-Hasselbalch: pH = pKa + log([A⁻]/[HA])</div>`;
+    });
+
+    // Conversion tab
+    wrap.querySelector("#ph-from-ph")!.addEventListener("click", () => {
+      const ph = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-conv-ph")!).value);
+      const res = wrap.querySelector<HTMLElement>("#ph-conv-result")!;
+      if (isNaN(ph)) { res.innerHTML = `<span class="chem-err">pH inválido</span>`; return; }
+      const conc = concFromPH(ph);
+      res.innerHTML = `[H⁺] = <strong>${fmtChem(conc)}</strong> mol/L   (pOH = ${fmtChem(14 - ph)})`;
+      (wrap.querySelector<HTMLInputElement>("#ph-conv-conc")!).value = fmtChem(conc);
+    });
+
+    wrap.querySelector("#ph-from-conc")!.addEventListener("click", () => {
+      const conc = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-conv-conc")!).value);
+      const res = wrap.querySelector<HTMLElement>("#ph-conv-result")!;
+      if (isNaN(conc) || conc <= 0) { res.innerHTML = `<span class="chem-err">Concentración inválida</span>`; return; }
+      const ph = pHFromConc(conc);
+      res.innerHTML = `pH = <strong>${fmtChem(ph, 4)}</strong>   (pOH = ${fmtChem(14 - ph)})`;
+      (wrap.querySelector<HTMLInputElement>("#ph-conv-ph")!).value = fmtChem(ph);
+    });
+  });
+
+  return wrap;
+}
+
+function renderPhResult(ph: number, poh: number): string {
+  const phColor = ph < 7 ? "#e05050" : ph > 7 ? "#3484e2" : "#18b050";
+  const label = ph < 7 ? "Ácido" : ph > 7 ? "Básico" : "Neutro";
+  const hConc = concFromPH(ph);
+  const ohConc = concFromPH(poh);
+  return `
+    <div class="chem-ph-display">
+      <div class="chem-ph-value" style="color:${phColor}">pH = ${fmtChem(ph, 4)}</div>
+      <div class="chem-ph-meta">
+        <span class="chem-ph-label" style="color:${phColor}">${label}</span>
+        <span>pOH = ${fmtChem(poh, 4)}</span>
+        <span>[H⁺] = ${fmtChem(hConc)} mol/L</span>
+        <span>[OH⁻] = ${fmtChem(ohConc)} mol/L</span>
+      </div>
+    </div>`;
+}
+
 function renderGraphFns(): void {
   const container = document.getElementById("graph-fns");
   if (!container) return;
@@ -2217,6 +2655,7 @@ function renderGraphFns(): void {
         placeholder="${i === 0 ? "sin(x)" : i === 1 ? "x^2/10" : "cos(x/2)"}"
         value="${fn.expr}"
         autocomplete="off" spellcheck="false" />
+      <button class="graph-polar-btn ${fn.polar ? 'active' : ''}" data-idx="${i}" title="${fn.polar ? 'Modo polar (r=f(θ)) — click para cartesiano' : 'Modo cartesiano (y=f(x)) — click para polar'}">θ</button>
       ${graphFunctions.length > 1 ? `<button class="graph-fn-remove" data-idx="${i}" title="Eliminar">×</button>` : ""}
     </div>
   `).join("");
@@ -2239,6 +2678,19 @@ function renderGraphFns(): void {
       const curIdx = GRAPH_PALETTE.indexOf(graphFunctions[i].color);
       graphFunctions[i].color = GRAPH_PALETTE[(curIdx + 1) % GRAPH_PALETTE.length];
       btn.style.background = graphFunctions[i].color;
+      grapherInstance?.setFunctions(graphFunctions);
+    });
+  });
+
+  // Wire polar toggle buttons
+  container.querySelectorAll<HTMLButtonElement>(".graph-polar-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.idx);
+      graphFunctions[i].polar = !graphFunctions[i].polar;
+      btn.classList.toggle("active", graphFunctions[i].polar ?? false);
+      btn.title = graphFunctions[i].polar
+        ? "Modo polar (r=f(θ)) — click para cartesiano"
+        : "Modo cartesiano (y=f(x)) — click para polar";
       grapherInstance?.setFunctions(graphFunctions);
     });
   });
