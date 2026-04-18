@@ -641,6 +641,55 @@ impl<'a> Evaluator<'a> {
                 let root = newton_raphson(eval_f, x0, 200)?;
                 return Ok(Value::Real(root));
             }
+            "taylor" | "maclaurin" => {
+                // taylor(f, a, n, x) — nth-order Taylor polynomial of f around a, evaluated at x
+                // maclaurin(f, n, x) — same with a = 0
+                let (f_expr, a, n, x_val) = if name == "maclaurin" {
+                    if argc != 3 {
+                        return Err("maclaurin(f, n, x): requiere 3 argumentos".to_string());
+                    }
+                    let a = 0.0;
+                    let n = self.eval_real(&args[1])? as usize;
+                    let x_val = self.eval_real(&args[2])?;
+                    (&args[0], a, n, x_val)
+                } else {
+                    if argc != 4 {
+                        return Err("taylor(f, a, n, x): requiere 4 argumentos\n  f = expresión en x, a = centro, n = orden, x = punto de evaluación".to_string());
+                    }
+                    let a = self.eval_real(&args[1])?;
+                    let n = self.eval_real(&args[2])? as usize;
+                    let x_val = self.eval_real(&args[3])?;
+                    (&args[0], a, n, x_val)
+                };
+                if n > 20 {
+                    return Err("taylor: orden máximo 20".to_string());
+                }
+                let scope_c = (*self.scope).clone();
+                let angle_mode = self.angle_mode;
+                let f_expr = f_expr;
+                let eval_f = move |t: f64| -> f64 {
+                    let mut ls = scope_c.clone();
+                    ls.insert("x".to_string(), Value::Real(t));
+                    let ev = Evaluator { scope: &ls, angle_mode };
+                    match ev.eval(f_expr) {
+                        Ok(Value::Real(r)) => r,
+                        Ok(Value::Complex(c)) if c.im.abs() < 1e-12 => c.re,
+                        _ => f64::NAN,
+                    }
+                };
+                // Compute Taylor polynomial: P(x) = Σ_{k=0}^{n} f^(k)(a)/k! · (x-a)^k
+                let mut result = 0.0_f64;
+                let mut factorial_k = 1.0_f64;
+                let mut power = 1.0_f64; // (x - a)^k
+                let dx = x_val - a;
+                for k in 0..=n {
+                    if k > 0 { factorial_k *= k as f64; }
+                    let dk = numerical_derivative(&eval_f, a, k);
+                    result += dk / factorial_k * power;
+                    power *= dx;
+                }
+                return Ok(Value::Real(result));
+            }
             _ => {}
         }
 
@@ -1103,6 +1152,34 @@ impl<'a> Evaluator<'a> {
     }
 }
 
+/// Compute the k-th derivative of f at point a using the central-difference binomial formula.
+///
+/// f^(k)(a) ≈ (1/h^k) · Σ_{j=0}^{k} (-1)^(k-j) · C(k,j) · f(a + (j - k/2)·h)
+///
+/// h must be LARGE enough to avoid catastrophic cancellation for high k.
+/// For k=6, h=0.1 → h^6=1e-6, cancellation ~1e-15/1e-6 ≈ 1e-9 relative error. Good.
+/// For k=1, h=0.1 → relative error ~eps/h^2 ≈ 1e-14. Also good.
+fn numerical_derivative<F: Fn(f64) -> f64>(f: &F, a: f64, k: usize) -> f64 {
+    if k == 0 {
+        return f(a);
+    }
+    // h grows slightly with k to keep h^k large enough vs machine epsilon.
+    // For k≤12: h=0.1*(1+√|a|), for k>12: h=0.3*(1+√|a|).
+    let scale = 1.0 + a.abs().sqrt();
+    let h = if k <= 12 { 0.1 * scale } else { 0.3 * scale };
+    let mut result = 0.0_f64;
+    let mut binom = 1.0_f64;
+    for j in 0..=k {
+        let sign = if (k - j) % 2 == 0 { 1.0 } else { -1.0 };
+        let xj = a + (j as f64 - 0.5 * k as f64) * h;
+        result += sign * binom * f(xj);
+        if j < k {
+            binom *= (k - j) as f64 / (j + 1) as f64;
+        }
+    }
+    result / h.powi(k as i32)
+}
+
 fn newton_raphson<F: Fn(f64) -> f64>(f: F, x0: f64, max_iter: usize) -> Result<f64, String> {
     let h = 1e-7;
     let tol = 1e-10;
@@ -1456,79 +1533,71 @@ fn bessel_j(n: i32, x: f64) -> f64 {
 }
 
 fn bessel_y0(x: f64) -> f64 {
-    if x < 8.0 {
-        let y = x * x;
-        let a0 = -2957821389.0_f64;
-        let a1 = 7062834065.0;
-        let a2 = -512359803.6;
-        let a3 = 10879881.29;
-        let a4 = -86327.92757;
-        let a5 = 228.4622733;
-        let b0 = 40076544269.0_f64;
-        let b1 = 745249964.8;
-        let b2 = 7189466.438;
-        let b3 = 47447.26470;
-        let b4 = 226.1030244;
-        let b5 = 1.0;
-        let a = ((((a5 * y + a4) * y + a3) * y + a2) * y + a1) * y + a0;
-        let b = ((((b5 * y + b4) * y + b3) * y + b2) * y + b1) * y + b0;
-        a / b + 0.636619772 * bessel_j0(x) * x.ln()
+    // Cephes j0.c coefficients (used by SciPy). Accurate to ~1e-15.
+    if x <= 5.0 {
+        // Y0(x) = polevl(x², YP, 7) / p1evl(x², YQ, 7) + (2/π)·ln(x)·J0(x)
+        // where polevl(z,a,n) = a[0]*z^n + ... + a[n]  and  p1evl prepends implicit 1.
+        let z = x * x;
+        // YP: 8 coefficients (degree 7), evaluated via Horner in z
+        let yp = ((((((( 1.55924361307847716443e4_f64
+            * z - 1.46639295903971606143e7)
+            * z + 5.43526477051876500544e9)
+            * z - 9.82136065717911316429e11)
+            * z + 8.75906394395366999549e13)
+            * z - 3.46628303384729719441e15)
+            * z + 4.42733268572569800351e16)
+            * z - 1.84950800436986690637e16);
+        // YQ: implicit leading 1, then 7 explicit coefficients (degree 7)
+        let yq = (((((( z
+            + 1.04128353664259848412e3)
+            * z + 6.26107330437134956842e5)
+            * z + 2.68919633393814121987e8)
+            * z + 8.64002487103935000337e10)
+            * z + 2.02979612750105546709e13)
+            * z + 3.17157752842975028269e15)
+            * z + 2.50596256172653059228e17;
+        yp / yq + 0.636619772 * x.ln() * bessel_j0(x)
     } else {
+        // Asymptotic: Y0(x) ≈ sqrt(2/πx)·[P0·sin(x-π/4) + Q0·cos(x-π/4)]
         let z = 8.0 / x;
         let y = z * z;
-        let xx = x - 2.356194491;
-        let p0 = 1.0_f64;
-        let p1 = 0.183105e-2;
-        let p2 = -0.3516396496e-4;
-        let p3 = 0.2457520174e-5;
-        let p4 = -0.240337019e-6;
-        let q0 = -0.04687499995;
-        let q1 = 0.2002690873e-3;
-        let q2 = -0.8449199096e-5;
-        let q3 = 0.88228987e-6;
-        let q4 = 0.105787413e-6;
-        let p = (((p4 * y + p3) * y + p2) * y + p1) * y + p0;
-        let q = (((q4 * y + q3) * y + q2) * y + q1) * y + q0 ;
+        let xx = x - 0.785398164; // x - π/4
+        let p = (((( 0.2093887211e-6 * y - 0.2073370639e-5) * y + 0.2734510407e-4) * y - 0.1098628627e-2) * y + 1.0);
+        let q = (((-0.934935152e-7 * y + 0.7621095161e-6) * y - 0.6911147651e-5) * y + 0.1430488765e-3) * y - 0.1562499995e-1;
         (0.636619772 / x).sqrt() * (xx.sin() * p + z * xx.cos() * q)
     }
 }
 
 fn bessel_y1(x: f64) -> f64 {
-    if x < 8.0 {
-        let y = x * x;
-        let a0 = -0.4900604943e13_f64;
-        let a1 = 0.1275274392e13;
-        let a2 = -0.3433437798e11;
-        let a3 = 0.43543097e9;
-        let a4 = -0.30738782e7;
-        let a5 = 0.1326092e5;
-        let a6 = 228.4622733;
-        let b0 = 0.183105e9_f64;
-        let b1 = 0.3510166636e9;
-        let b2 = 0.2136192e7;
-        let b3 = 0.1201153e5;
-        let b4 = 0.4563251e3;
-        let b5 = 1.0;
-        let a = (((((a6 * y + a5) * y + a4) * y + a3) * y + a2) * y + a1) * y + a0;
-        let b = ((((b5 * y + b4) * y + b3) * y + b2) * y + b1) * y + b0;
-        x * a / b + 0.636619772 * (bessel_j1(x) * x.ln() - 1.0 / x)
+    // Cephes j1.c coefficients (used by SciPy). Accurate to ~1e-15.
+    if x <= 5.0 {
+        // Y1(x) = x·polevl(x², YP, 5) / p1evl(x², YQ, 8) + (2/π)·(J1(x)·ln(x) - 1/x)
+        let z = x * x;
+        // YP: 6 coefficients (degree 5)
+        let yp = (((( 1.26320474790178026440e9_f64
+            * z - 6.47355876379160291031e11)
+            * z + 1.14509511541823727877e14)
+            * z - 8.12770255501325109621e15)
+            * z + 2.02439475713594898196e17)
+            * z - 7.78877196265950026825e17;
+        // YQ: implicit leading 1, then 8 explicit coefficients (degree 8)
+        let yq = ((((((( z
+            + 5.94301592346128195359e2)
+            * z + 1.61174538508025372494e5)
+            * z + 2.57866567748242287823e7)
+            * z + 2.31171260501843076499e9)
+            * z + 1.17151928629956830932e11)
+            * z + 3.79805041012952290910e13)
+            * z + 9.38472218587395656651e15)
+            * z + 2.52070205858023719784e17;
+        x * yp / yq + 0.636619772 * (bessel_j1(x) * x.ln() - 1.0 / x)
     } else {
+        // Asymptotic: Y1(x) ≈ sqrt(2/πx)·[P1·sin(x-3π/4) + Q1·cos(x-3π/4)]
         let z = 8.0 / x;
         let y = z * z;
-        let xx = x - 2.356194491;
-        let p0 = 1.0_f64;
-        let p1 = -0.0775428096e-2;
-        let p2 = 0.0243374518e-2;
-        let p3 = -0.3465684617e-4;
-        let p4 = 0.3108610129e-5;
-        let p5 = -0.1521757532e-6;
-        let q0 = -0.0787571232e-1;
-        let q1 = 0.4764981146e-3;
-        let q2 = -0.4080642043e-5;
-        let q3 = 0.2183015168e-6;
-        let q4 = -0.4729345032e-8;
-        let p = ((((p5 * y + p4) * y + p3) * y + p2) * y + p1) * y + p0 ;
-        let q = (((q4 * y + q3) * y + q2) * y + q1) * y + q0 ;
+        let xx = x - 2.356194491; // x - 3π/4
+        let p = (((-0.240337019e-6 * y + 0.2457520174e-5) * y - 0.3516396496e-4) * y + 0.183105e-2) * y + 1.0;
+        let q = (((0.105787413e-6 * y - 0.88228987e-6) * y + 0.8449199096e-5) * y - 0.2002690873e-3) * y + 0.04687499995;
         (0.636619772 / x).sqrt() * (xx.sin() * p + z * xx.cos() * q)
     }
 }
@@ -1738,5 +1807,63 @@ mod special_fn_tests {
         // J2(1)≈0.11490348, J3(3)≈0.30906272
         assert!(rel_err(bessel_j(2, 1.0), 0.11490348493190048) < 1e-6, "J2(1)={}", bessel_j(2, 1.0));
         assert!(rel_err(bessel_j(3, 3.0), 0.30906272225525164) < 1e-6, "J3(3)={}", bessel_j(3, 3.0));
+    }
+
+    #[test]
+    fn test_bessel_y0() {
+        // Y0(1)≈0.08825696, Y0(2)≈0.10703243, Y0(5)≈-0.30851763
+        assert!(rel_err(bessel_y0(1.0), 0.08825696421567695) < 1e-7, "Y0(1)={}", bessel_y0(1.0));
+        assert!(rel_err(bessel_y0(2.0), 0.1070324315409375) < 1e-7, "Y0(2)={}", bessel_y0(2.0));
+        assert!(rel_err(bessel_y0(5.0), -0.3085176252490338) < 1e-7, "Y0(5)={}", bessel_y0(5.0));
+        // Large x
+        assert!(rel_err(bessel_y0(10.0), 0.05567116728359490) < 1e-7, "Y0(10)={}", bessel_y0(10.0));
+    }
+
+    #[test]
+    fn test_bessel_y1() {
+        // Y1(1)≈-0.78121282, Y1(2)≈-0.10703243, Y1(5)≈0.14786314
+        assert!(rel_err(bessel_y1(1.0), -0.7812128213002888) < 1e-7, "Y1(1)={}", bessel_y1(1.0));
+        assert!(rel_err(bessel_y1(2.0), -0.10703243154093754) < 1e-7, "Y1(2)={}", bessel_y1(2.0));
+        assert!(rel_err(bessel_y1(5.0), 0.14786314339122693) < 1e-7, "Y1(5)={}", bessel_y1(5.0));
+        assert!(rel_err(bessel_y1(10.0), 0.24901542420695388) < 1e-7, "Y1(10)={}", bessel_y1(10.0));
+    }
+
+    #[test]
+    fn test_numerical_derivative() {
+        // sin'(x) = cos(x): at x=1, expected cos(1)≈0.5403023
+        let dk = numerical_derivative(&f64::sin, 1.0, 1);
+        assert!(rel_err(dk, 1.0_f64.cos()) < 1e-6, "sin'(1)={dk}");
+        // sin''(x) = -sin(x): at x=1, expected -sin(1)≈-0.8414710
+        let dk2 = numerical_derivative(&f64::sin, 1.0, 2);
+        assert!(rel_err(dk2, -1.0_f64.sin()) < 1e-4, "sin''(1)={dk2}");
+        // exp'(x) = exp(x): at x=0.5, expected exp(0.5)
+        let dexp = numerical_derivative(&f64::exp, 0.5, 1);
+        assert!(rel_err(dexp, 0.5_f64.exp()) < 1e-6, "exp'(0.5)={dexp}");
+    }
+
+    #[test]
+    fn test_taylor_polynomial() {
+        // Taylor of sin(x) around 0 up to order 5, evaluated at x=0.5
+        // sin(0.5) ≈ 0.4794255386 (exact)
+        // P5(0.5) = 0.5 - 0.5³/6 + 0.5⁵/120 ≈ 0.47942708...
+        let scope = Scope::new();
+        let ev = Evaluator { scope: &scope, angle_mode: "rad" };
+        use super::super::parser::parse_expr;
+        let expr = parse_expr("taylor(sin(x), 0, 5, 0.5)").unwrap();
+        match ev.eval(&expr) {
+            Ok(Value::Real(r)) => {
+                // P5(0.5) should be within 1e-4 of sin(0.5)
+                assert!((r - 0.5_f64.sin()).abs() < 1e-4, "taylor sin(x) at 0.5 = {r}");
+            }
+            other => panic!("expected Real, got {:?}", other),
+        }
+        // Maclaurin of cos(x) order 6 at x=1: cos(1)≈0.5403023
+        let expr2 = parse_expr("maclaurin(cos(x), 6, 1)").unwrap();
+        match ev.eval(&expr2) {
+            Ok(Value::Real(r)) => {
+                assert!((r - 1.0_f64.cos()).abs() < 1e-4, "maclaurin cos(x) at 1 = {r}");
+            }
+            other => panic!("expected Real, got {:?}", other),
+        }
     }
 }
