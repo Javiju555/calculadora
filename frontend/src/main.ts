@@ -92,11 +92,11 @@ let sidePanelOpen = false;
 const SIDE_PANEL_WIDTH = 380;
 const WINDOW_SIZES: Record<Mode, [number, number]> = {
   basic: [480, 720],
-  scientific: [860, 800],
-  conversions: [480, 720],
-  graph: [980, 740],
-  engineering: [980, 820],
-  quimica: [560, 840],
+  scientific: [880, 800],
+  conversions: [500, 740],
+  graph: [1000, 760],
+  engineering: [1000, 820],
+  quimica: [640, 850], // Increased width to avoid overflow
 };
 
 // Disable context menu (no reload/inspect in production)
@@ -362,8 +362,15 @@ function updateShellControls(): void {
 function resizeForCurrentMode(): void {
   const [baseWidth, baseHeight] = WINDOW_SIZES[state.mode];
   const width = baseWidth + (sidePanelOpen && isSidePanelAvailable() ? SIDE_PANEL_WIDTH : 0);
-  void getCurrentWindow().setSize(new LogicalSize(width, baseHeight));
+  const win = getCurrentWindow();
+  
+  // Set as suggested size
+  void win.setSize(new LogicalSize(width, baseHeight));
+  
+  // Also enforce it as minimum to prevent layout breaking
+  void win.setMinSize(new LogicalSize(width - 40, baseHeight - 40));
 }
+
 
 function updateSidePanel(): void {
   const panel = document.getElementById("side-panel");
@@ -677,10 +684,10 @@ function buildScientificLayout(): HTMLElement {
     // Row 0: clear/back + top operators
     [
       { label: "C",     action: "C",       cls: "btn-special" },
+      { label: "⌫",     action: "back",    cls: "btn-special" },
       { label: "√",     action: "sqrt(",   cls: "btn-sci" },
       { label: "n!",    action: "!",       cls: "btn-sci" },
       { label: "|x|",   action: "abs(",    cls: "btn-sci" },
-      { label: "⌫",     action: "back",    cls: "btn-special" },
       { label: "(",     action: "(",       cls: "btn-special" },
       { label: ")",     action: ")",       cls: "btn-special" },
       { label: "mod",   action: "%",       cls: "btn-special" },
@@ -725,8 +732,8 @@ function buildScientificLayout(): HTMLElement {
     // Row 4
     [
       { label: "nCr",   action: "nCr(",    cls: "btn-sci" },
-      { label: "Ans",   action: "_ans",    cls: "btn-sci" },
       { label: "1/x",   action: "1/(",     cls: "btn-sci" },
+      { label: "Ans",   action: "_ans",    cls: "btn-sci" },
       { label: "π",     action: "π",       cls: "btn-const" },
       { label: "e",     action: "e",       cls: "btn-const" },
       { label: "±",     action: "negate",  cls: "btn-special" },
@@ -739,9 +746,17 @@ function buildScientificLayout(): HTMLElement {
   unifiedRows.forEach(rowDefs => {
     const row = document.createElement("div");
     row.className = "btn-row cols-9";
-    rowDefs.forEach(def => row.appendChild(makeBtnEl(def)));
+    // First 5
+    rowDefs.slice(0, 5).forEach(def => row.appendChild(makeBtnEl(def)));
+    // Spacer
+    const spacer = document.createElement("div");
+    spacer.className = "spacer";
+    row.appendChild(spacer);
+    // Last 4
+    rowDefs.slice(5).forEach(def => row.appendChild(makeBtnEl(def)));
     area.appendChild(row);
   });
+
 
   wrap.appendChild(area);
   return wrap;
@@ -1653,7 +1668,10 @@ function buildConvLayout(): HTMLElement {
   wrap.className = "conv-wrapper";
 
   wrap.innerHTML = `
-    <div class="conv-categories" id="conv-cats"></div>
+    <div class="conv-header">
+      <label class="conv-cat-label">Categoría:</label>
+      <select class="conv-cat-select" id="conv-cat-selector"></select>
+    </div>
     <div class="conv-body">
       <div class="conv-field">
         <div class="conv-input-wrap">
@@ -1715,9 +1733,14 @@ function buildConvLayout(): HTMLElement {
       computeConv("from");
     });
 
+    document.getElementById("conv-cat-selector")?.addEventListener("change", e => {
+      const select = e.target as HTMLSelectElement;
+      onCatChange(select.value);
+    });
+
     wrap.querySelector(".conv-arrow")?.addEventListener("click", () => {
       [convFromId, convToId] = [convToId, convFromId];
-      [convFromVal, convToVal] = [convToVal, convFromVal];
+      // Note: we don't swap values here logic-wise to follow common "reverse" behavior
       updateConv();
       computeConv("from");
     });
@@ -1726,28 +1749,25 @@ function buildConvLayout(): HTMLElement {
   return wrap;
 }
 
+function onCatChange(catId: string): void {
+  convCatId = catId;
+  const cat = CATEGORIES.find(c => c.id === convCatId)!;
+  convFromId = cat.units[0].id;
+  convToId = cat.units[1]?.id ?? cat.units[0].id;
+  convFromVal = "";
+  convToVal = "";
+  updateConv();
+}
+
 function renderConvCategories(): void {
-  const el = document.getElementById("conv-cats");
-  if (!el) return;
+  const select = document.getElementById("conv-cat-selector") as HTMLSelectElement | null;
+  if (!select) return;
 
-  el.innerHTML = CATEGORIES.map(cat => `
-    <button class="conv-cat-btn ${cat.id === convCatId ? "active" : ""}" data-cat="${cat.id}">
+  select.innerHTML = CATEGORIES.map(cat => `
+    <option value="${cat.id}" ${cat.id === convCatId ? "selected" : ""}>
       ${cat.name}
-    </button>
+    </option>
   `).join("");
-
-  el.querySelectorAll<HTMLButtonElement>(".conv-cat-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      convCatId = btn.dataset.cat!;
-      const cat = CATEGORIES.find(c => c.id === convCatId)!;
-      convFromId = cat.units[0].id;
-      convToId = cat.units[1]?.id ?? cat.units[0].id;
-      convFromVal = "";
-      convToVal = "";
-      renderConvCategories();
-      updateConv();
-    });
-  });
 }
 
 function updateConv(): void {
