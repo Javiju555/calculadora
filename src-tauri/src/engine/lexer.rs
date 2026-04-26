@@ -44,7 +44,12 @@ impl Lexer {
             .replace('√', "sqrt")
             .replace('π', "pi")
             .replace('τ', "tau")
-            .replace('°', "*pi/180");
+            .replace('°', "*pi/180")
+            // Superscript digits → ^N
+            .replace('⁰', "^0").replace('¹', "^1").replace('²', "^2")
+            .replace('³', "^3").replace('⁴', "^4").replace('⁵', "^5")
+            .replace('⁶', "^6").replace('⁷', "^7").replace('⁸', "^8")
+            .replace('⁹', "^9");
 
         Lexer {
             chars: src.chars().collect(),
@@ -99,7 +104,7 @@ impl Lexer {
         let start = self.pos - 1;
         while self
             .peek()
-            .map(|c| c.is_alphanumeric() || c == '_')
+            .map(|c| c.is_alphabetic() || c.is_ascii_digit() || c == '_')
             .unwrap_or(false)
         {
             self.advance();
@@ -119,7 +124,7 @@ impl Lexer {
                 Some(c) => {
                     let tok = match c {
                         '0'..='9' | '.' => Tok::Num(self.read_number()),
-                        'a'..='z' | 'A'..='Z' | '_' => Tok::Ident(self.read_ident()),
+                        c if c.is_alphabetic() || c == '_' => Tok::Ident(self.read_ident()),
                         '+' => Tok::Plus,
                         '-' => Tok::Minus,
                         '*' => Tok::Star,
