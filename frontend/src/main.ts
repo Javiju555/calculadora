@@ -1947,6 +1947,8 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>beta(a,b)</code></div>
           <div class="eng-help-row"><code>besselj(n,x)</code> Bessel J</div>
           <div class="eng-help-row"><code>bessely(n,x)</code> Bessel Y</div>
+          <div class="eng-help-row"><code>taylor(f,a,n,x)</code> serie Taylor</div>
+          <div class="eng-help-row"><code>maclaurin(f,n,x)</code> en a=0</div>
           <div class="eng-help-row"><code>w(x)</code> Lambert W</div>
           <div class="eng-help-row"><code>sinc(x)</code> sin(x)/x</div>
           <div class="eng-help-row"><code>nthroot(n, x)</code> raíz n-ésima</div>
