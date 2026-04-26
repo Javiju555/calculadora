@@ -116,8 +116,15 @@ impl Parser {
                     left = Expr::Rem(Box::new(left), Box::new(self.parse_pow()?));
                 }
                 // Implicit multiplication: number immediately followed by ident/lparen
-                // e.g.  2pi  2(x+1)  handled by checking the next token
-                Tok::Ident(_) | Tok::LParen => {
+                // e.g.  2pi  2(x+1)  — but NOT if the ident is followed by '='
+                // (that would be the next assignment statement, not an operand)
+                Tok::Ident(_) => {
+                    if self.tokens.get(self.pos + 1) == Some(&Tok::Eq) {
+                        break;
+                    }
+                    left = Expr::Mul(Box::new(left), Box::new(self.parse_pow()?));
+                }
+                Tok::LParen => {
                     left = Expr::Mul(Box::new(left), Box::new(self.parse_pow()?));
                 }
                 _ => break,
