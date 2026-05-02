@@ -100,23 +100,31 @@ Básica | Científica | Conversiones | Gráficos | Ingeniería | Química | Espe
 - [ ] Polinomios de Laguerre
 - [ ] Función zeta de Riemann ζ(s)
 - [ ] Función de Dawson
-- [ ] Fresnel S(x), C(x)
+- [x] Fresnel S(x), C(x) — `fresnel_s`, `fresnel_c`
 - [ ] Funciones hipergeométricas 2F1
-- [ ] Lambert W (ya implementado `w(x)`)
-- [ ] `statrs` + `special` como backends
+- [x] Lambert W — `w(x)`
+- [ ] `special` crate para Bessel I/K de orden alto, Airy
 
 ### Estadística
-- [ ] Descriptiva: `mean`, `std`, `median`, `var`, `percentile`, `mode`
-- [ ] Distribuciones (PDF/CDF/PPF): Normal, t, χ², F, Binomial, Poisson, Exponencial, Uniforme
-- [ ] Tests: z-test, t-test, chi-cuadrado
+- [x] Descriptiva: `mean`/`avg`, `stdev`, `median`, `variance`, `min`, `max`, `sum`, `product`, `rms`
+- [ ] Descriptiva: `percentile`, `mode`, `skewness`, `kurtosis`
+- [x] Distribuciones continuas (PDF/CDF/PPF): Normal, t, χ², F, Exponencial, Beta, Gamma, LogNormal, Weibull, Cauchy
+- [x] Distribuciones discretas (PMF/CDF): Binomial, Poisson
+- [x] Funciones especiales estadísticas: `digamma`, `polygamma`, `erfinv`, `gammainc`, `betainc`, `betaincinv`
+- [ ] Tests: z-test, t-test, chi-cuadrado (función de decisión)
 - [ ] Regresión lineal `linreg([x...], [y...])` → pendiente, intercepto, R²
-- [ ] Regresión polinomial
-- [ ] Correlación de Pearson / Spearman
-- [ ] `statrs` como backend
+- [ ] Correlación de Pearson
+- [x] `statrs` integrado como backend
+
+### Combinatoria y Teoría de números (actualización)
+- [x] `fibonacci(n)`, `catalan(n)`
+- [x] `gcd`, `lcm`, `isprime`, `nCr`/`binom`, `nPr`/`perm`, `factorial`, `factorial2`
 
 ### Electrónica y Electromagnetismo
 *(pestaña Especialista → Electrónica/EM)*
-- [ ] Resistencias en serie y paralelo
+- [x] `parallel(R1, R2, ...)` — resistencia en paralelo
+- [x] `dB`, `from_dB`, `dBm`, `from_dBm` — conversión decibeles
+- [ ] Resistencias en serie
 - [ ] Divisor de tensión / corriente
 - [ ] Ley de Ohm (resolver V, I, R dado dos)
 - [ ] Potencia: P = VI = I²R = V²/R
