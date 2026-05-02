@@ -4,6 +4,12 @@ use num_complex::Complex64;
 /// Numerical evaluator.  Works over Complex<f64> for full generality;
 /// results that have negligible imaginary parts are returned as real.
 use std::collections::HashMap;
+use statrs::distribution::{
+    Beta as BetaDist, Cauchy as CauchyDist, ChiSquared, Continuous, ContinuousCDF,
+    Exp as ExpDist, FisherSnedecor, Gamma as GammaDist, LogNormal, StudentsT,
+    Weibull,
+};
+use statrs::distribution::{Discrete, DiscreteCDF, Poisson as PoissonDist, Binomial as BinomDist};
 
 pub type Scope = HashMap<String, Value>;
 
@@ -1142,6 +1148,298 @@ impl<'a> Evaluator<'a> {
                 let rms = (vals.iter().map(|x| x * x).sum::<f64>() / vals.len() as f64).sqrt();
                 Complex64::new(rms, 0.0)
             }
+            // ── Student's t distribution ──────────────────────────────────
+            "tpdf" | "t_pdf" => {
+                if argc != 2 { return Err("tpdf(x, df)".to_string()); }
+                let (x, df) = arg2!();
+                let d = StudentsT::new(0.0, 1.0, df.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x.re), 0.0)
+            }
+            "tcdf" | "t_cdf" => {
+                if argc != 2 { return Err("tcdf(x, df)".to_string()); }
+                let (x, df) = arg2!();
+                let d = StudentsT::new(0.0, 1.0, df.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x.re), 0.0)
+            }
+            "tinv" | "t_inv" | "t_ppf" => {
+                if argc != 2 { return Err("tinv(p, df)".to_string()); }
+                let (p, df) = arg2!();
+                let d = StudentsT::new(0.0, 1.0, df.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p.re), 0.0)
+            }
+            // ── Chi-squared distribution ──────────────────────────────────
+            "chi2pdf" | "chi2_pdf" => {
+                if argc != 2 { return Err("chi2pdf(x, df)".to_string()); }
+                let (x, df) = arg2!();
+                let d = ChiSquared::new(df.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x.re), 0.0)
+            }
+            "chi2cdf" | "chi2_cdf" => {
+                if argc != 2 { return Err("chi2cdf(x, df)".to_string()); }
+                let (x, df) = arg2!();
+                let d = ChiSquared::new(df.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x.re), 0.0)
+            }
+            "chi2inv" | "chi2_inv" | "chi2_ppf" => {
+                if argc != 2 { return Err("chi2inv(p, df)".to_string()); }
+                let (p, df) = arg2!();
+                let d = ChiSquared::new(df.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p.re), 0.0)
+            }
+            // ── F (Fisher-Snedecor) distribution ─────────────────────────
+            "fpdf" | "f_pdf" => {
+                if argc != 3 { return Err("fpdf(x, d1, d2)".to_string()); }
+                let x  = self.eval_real(&args[0])?;
+                let d1 = self.eval_real(&args[1])?;
+                let d2 = self.eval_real(&args[2])?;
+                let d = FisherSnedecor::new(d1, d2).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x), 0.0)
+            }
+            "fcdf" | "f_cdf" => {
+                if argc != 3 { return Err("fcdf(x, d1, d2)".to_string()); }
+                let x  = self.eval_real(&args[0])?;
+                let d1 = self.eval_real(&args[1])?;
+                let d2 = self.eval_real(&args[2])?;
+                let d = FisherSnedecor::new(d1, d2).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x), 0.0)
+            }
+            "finv" | "f_inv" | "f_ppf" => {
+                if argc != 3 { return Err("finv(p, d1, d2)".to_string()); }
+                let p  = self.eval_real(&args[0])?;
+                let d1 = self.eval_real(&args[1])?;
+                let d2 = self.eval_real(&args[2])?;
+                let d = FisherSnedecor::new(d1, d2).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p), 0.0)
+            }
+            // ── Exponential distribution ──────────────────────────────────
+            "exppdf" | "exp_pdf" => {
+                if argc != 2 { return Err("exppdf(x, lambda)".to_string()); }
+                let (x, l) = arg2!();
+                let d = ExpDist::new(l.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x.re), 0.0)
+            }
+            "expcdf" | "exp_cdf" => {
+                if argc != 2 { return Err("expcdf(x, lambda)".to_string()); }
+                let (x, l) = arg2!();
+                let d = ExpDist::new(l.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x.re), 0.0)
+            }
+            "expinv" | "exp_inv" | "exp_ppf" => {
+                if argc != 2 { return Err("expinv(p, lambda)".to_string()); }
+                let (p, l) = arg2!();
+                let d = ExpDist::new(l.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p.re), 0.0)
+            }
+            // ── Beta distribution (probability) ───────────────────────────
+            "betapdf" | "beta_pdf" => {
+                if argc != 3 { return Err("betapdf(x, alpha, beta)".to_string()); }
+                let x  = self.eval_real(&args[0])?;
+                let a  = self.eval_real(&args[1])?;
+                let b  = self.eval_real(&args[2])?;
+                let d = BetaDist::new(a, b).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x), 0.0)
+            }
+            "betacdf" | "beta_cdf" => {
+                if argc != 3 { return Err("betacdf(x, alpha, beta)".to_string()); }
+                let x  = self.eval_real(&args[0])?;
+                let a  = self.eval_real(&args[1])?;
+                let b  = self.eval_real(&args[2])?;
+                let d = BetaDist::new(a, b).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x), 0.0)
+            }
+            "betainv" | "beta_inv" | "beta_ppf" => {
+                if argc != 3 { return Err("betainv(p, alpha, beta)".to_string()); }
+                let p  = self.eval_real(&args[0])?;
+                let a  = self.eval_real(&args[1])?;
+                let b  = self.eval_real(&args[2])?;
+                let d = BetaDist::new(a, b).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p), 0.0)
+            }
+            // ── Gamma distribution (probability) ──────────────────────────
+            "gammapdf" | "gamma_pdf" => {
+                if argc != 3 { return Err("gammapdf(x, shape, rate)".to_string()); }
+                let x     = self.eval_real(&args[0])?;
+                let shape = self.eval_real(&args[1])?;
+                let rate  = self.eval_real(&args[2])?;
+                let d = GammaDist::new(shape, rate).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x), 0.0)
+            }
+            "gammacdf" | "gamma_cdf" => {
+                if argc != 3 { return Err("gammacdf(x, shape, rate)".to_string()); }
+                let x     = self.eval_real(&args[0])?;
+                let shape = self.eval_real(&args[1])?;
+                let rate  = self.eval_real(&args[2])?;
+                let d = GammaDist::new(shape, rate).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x), 0.0)
+            }
+            "gammainv" | "gamma_inv" | "gamma_ppf" => {
+                if argc != 3 { return Err("gammainv(p, shape, rate)".to_string()); }
+                let p     = self.eval_real(&args[0])?;
+                let shape = self.eval_real(&args[1])?;
+                let rate  = self.eval_real(&args[2])?;
+                let d = GammaDist::new(shape, rate).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p), 0.0)
+            }
+            // ── LogNormal distribution ────────────────────────────────────
+            "lognormpdf" | "lognormal_pdf" => {
+                if argc != 3 { return Err("lognormpdf(x, mu, sigma)".to_string()); }
+                let x     = self.eval_real(&args[0])?;
+                let mu    = self.eval_real(&args[1])?;
+                let sigma = self.eval_real(&args[2])?;
+                let d = LogNormal::new(mu, sigma).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x), 0.0)
+            }
+            "lognormcdf" | "lognormal_cdf" => {
+                if argc != 3 { return Err("lognormcdf(x, mu, sigma)".to_string()); }
+                let x     = self.eval_real(&args[0])?;
+                let mu    = self.eval_real(&args[1])?;
+                let sigma = self.eval_real(&args[2])?;
+                let d = LogNormal::new(mu, sigma).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x), 0.0)
+            }
+            "lognorminv" | "lognormal_inv" => {
+                if argc != 3 { return Err("lognorminv(p, mu, sigma)".to_string()); }
+                let p     = self.eval_real(&args[0])?;
+                let mu    = self.eval_real(&args[1])?;
+                let sigma = self.eval_real(&args[2])?;
+                let d = LogNormal::new(mu, sigma).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p), 0.0)
+            }
+            // ── Weibull distribution ──────────────────────────────────────
+            "weibullpdf" | "weibull_pdf" => {
+                if argc != 3 { return Err("weibullpdf(x, shape, scale)".to_string()); }
+                let x     = self.eval_real(&args[0])?;
+                let shape = self.eval_real(&args[1])?;
+                let scale = self.eval_real(&args[2])?;
+                let d = Weibull::new(shape, scale).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x), 0.0)
+            }
+            "weibullcdf" | "weibull_cdf" => {
+                if argc != 3 { return Err("weibullcdf(x, shape, scale)".to_string()); }
+                let x     = self.eval_real(&args[0])?;
+                let shape = self.eval_real(&args[1])?;
+                let scale = self.eval_real(&args[2])?;
+                let d = Weibull::new(shape, scale).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x), 0.0)
+            }
+            "weibullinv" | "weibull_inv" => {
+                if argc != 3 { return Err("weibullinv(p, shape, scale)".to_string()); }
+                let p     = self.eval_real(&args[0])?;
+                let shape = self.eval_real(&args[1])?;
+                let scale = self.eval_real(&args[2])?;
+                let d = Weibull::new(shape, scale).map_err(|e| e.to_string())?;
+                Complex64::new(d.inverse_cdf(p), 0.0)
+            }
+            // ── Cauchy distribution ───────────────────────────────────────
+            "cauchypdf" | "cauchy_pdf" => {
+                if argc != 3 { return Err("cauchypdf(x, x0, gamma)".to_string()); }
+                let x  = self.eval_real(&args[0])?;
+                let x0 = self.eval_real(&args[1])?;
+                let g  = self.eval_real(&args[2])?;
+                let d = CauchyDist::new(x0, g).map_err(|e| e.to_string())?;
+                Complex64::new(d.pdf(x), 0.0)
+            }
+            "cauchycdf" | "cauchy_cdf" => {
+                if argc != 3 { return Err("cauchycdf(x, x0, gamma)".to_string()); }
+                let x  = self.eval_real(&args[0])?;
+                let x0 = self.eval_real(&args[1])?;
+                let g  = self.eval_real(&args[2])?;
+                let d = CauchyDist::new(x0, g).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(x), 0.0)
+            }
+            // ── Poisson CDF (PMF ya existe como poissonpmf) ───────────────
+            "poissoncdf" | "poisson_cdf" => {
+                if argc != 2 { return Err("poissoncdf(k, lambda)".to_string()); }
+                let (k, l) = arg2!();
+                let d = PoissonDist::new(l.re).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(k.re as u64), 0.0)
+            }
+            // ── Binomial CDF (PMF ya existe como binompmf) ────────────────
+            "binomcdf" | "binom_cdf" => {
+                if argc != 3 { return Err("binomcdf(k, n, p)".to_string()); }
+                let k = self.eval_real(&args[0])?.round() as u64;
+                let n = self.eval_real(&args[1])?.round() as u64;
+                let p = self.eval_real(&args[2])?;
+                let d = BinomDist::new(p, n).map_err(|e| e.to_string())?;
+                Complex64::new(d.cdf(k), 0.0)
+            }
+            // ── Special functions via statrs ──────────────────────────────
+            "digamma" | "psi" => {
+                if argc != 1 { return Err("digamma(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(statrs::function::gamma::digamma(x.re), 0.0)
+            }
+            "polygamma" => {
+                // ψ(n)(x) = n-th derivative of digamma, computed numerically
+                if argc != 2 { return Err("polygamma(n, x)".to_string()); }
+                let (n, x) = arg2!();
+                let k = n.re.round() as usize;
+                let d = |t: f64| statrs::function::gamma::digamma(t);
+                Complex64::new(numerical_derivative(&d, x.re, k), 0.0)
+            }
+            "erfinv" | "erf_inv" => {
+                if argc != 1 { return Err("erfinv(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(statrs::function::erf::erf_inv(x.re), 0.0)
+            }
+            "gammainc" | "gammaincp" | "igamma" => {
+                // Regularized lower incomplete gamma P(a, x)
+                if argc != 2 { return Err("gammainc(a, x) — P(a,x) gamma incompleta regularizada".to_string()); }
+                let (a, x) = arg2!();
+                Complex64::new(statrs::function::gamma::gamma_lr(a.re, x.re), 0.0)
+            }
+            "gammaincq" | "igammac" => {
+                // Regularized upper incomplete gamma Q(a, x) = 1 - P(a, x)
+                if argc != 2 { return Err("gammaincq(a, x) — Q(a,x)".to_string()); }
+                let (a, x) = arg2!();
+                Complex64::new(statrs::function::gamma::gamma_ur(a.re, x.re), 0.0)
+            }
+            "betainc" | "ibeta" => {
+                // Regularized incomplete beta I_x(a, b)
+                if argc != 3 { return Err("betainc(a, b, x) — I_x(a,b)".to_string()); }
+                let a = self.eval_real(&args[0])?;
+                let b = self.eval_real(&args[1])?;
+                let x = self.eval_real(&args[2])?;
+                Complex64::new(statrs::function::beta::beta_inc(a, b, x), 0.0)
+            }
+            "betaincinv" | "ibeta_inv" => {
+                if argc != 3 { return Err("betaincinv(a, b, p)".to_string()); }
+                let a = self.eval_real(&args[0])?;
+                let b = self.eval_real(&args[1])?;
+                let p = self.eval_real(&args[2])?;
+                Complex64::new(statrs::function::beta::inv_beta_reg(a, b, p), 0.0)
+            }
+            // ── Modified Bessel functions I (first kind) ──────────────────
+            "besseli" => {
+                if argc != 2 { return Err("besseli(n, x)".to_string()); }
+                let (n, x) = arg2!();
+                Complex64::new(bessel_i(n.re as i32, x.re), 0.0)
+            }
+            // ── Fresnel integrals ─────────────────────────────────────────
+            "fresnel_s" | "fresnels" | "FresnelS" => {
+                if argc != 1 { return Err("fresnel_s(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(fresnel_s(x.re), 0.0)
+            }
+            "fresnel_c" | "fresnelc" | "FresnelC" => {
+                if argc != 1 { return Err("fresnel_c(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(fresnel_c(x.re), 0.0)
+            }
+            // ── Combinatorial ─────────────────────────────────────────────
+            "fibonacci" | "fib" => {
+                if argc != 1 { return Err("fibonacci(n)".to_string()); }
+                let x = arg1!();
+                let n = x.re.round() as u64;
+                Complex64::new(fibonacci(n), 0.0)
+            }
+            "catalan" => {
+                if argc != 1 { return Err("catalan(n)".to_string()); }
+                let x = arg1!();
+                let n = x.re.round() as u64;
+                // C_n = C(2n, n) / (n+1)
+                Complex64::new(binomial_coeff(2 * n, n) / (n + 1) as f64, 0.0)
+            }
             other => {
                 // Check user-defined function in scope (store as Symbolic strings later)
                 return Err(format!("Función desconocida: '{other}'"));
@@ -1708,6 +2006,157 @@ fn binomial_coeff(n: u64, k: u64) -> f64 {
     }
     let k = k.min(n - k);
     (1..=k).fold(1.0_f64, |acc, i| acc * (n - k + i) as f64 / i as f64)
+}
+
+// ── Modified Bessel function I (first kind) ──────────────────────────────────
+// I0(x): NR polynomial approximation (Abramowitz & Stegun 9.8)
+fn bessel_i0(x: f64) -> f64 {
+    let ax = x.abs();
+    if ax < 3.75 {
+        let t = (x / 3.75) * (x / 3.75);
+        1.0 + t * (3.5156229 + t * (3.0899424 + t * (1.2067492
+            + t * (0.2659732 + t * (0.0360768 + t * 0.0045813)))))
+    } else {
+        let t = 3.75 / ax;
+        (ax.exp() / ax.sqrt()) * (0.39894228 + t * (0.01328592
+            + t * (0.00225319 + t * (-0.00157565 + t * (0.00916281
+            + t * (-0.02057706 + t * (0.02635537 + t * (-0.01647633
+            + t * 0.00392377))))))))
+    }
+}
+
+fn bessel_i1(x: f64) -> f64 {
+    let ax = x.abs();
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let v = if ax < 3.75 {
+        let t = (x / 3.75) * (x / 3.75);
+        ax * (0.5 + t * (0.87890594 + t * (0.51498869 + t * (0.15084934
+            + t * (0.02658733 + t * (0.00301532 + t * 0.00032411))))))
+    } else {
+        let t = 3.75 / ax;
+        (ax.exp() / ax.sqrt()) * (0.39894228 + t * (-0.03988024
+            + t * (-0.00362018 + t * (0.00163801 + t * (-0.01031555
+            + t * (0.02282967 + t * (-0.02895312 + t * (0.01787654
+            + t * (-0.00420059)))))))))
+    };
+    sign * v
+}
+
+fn bessel_i(n: i32, x: f64) -> f64 {
+    let n = n.abs() as usize;
+    if n == 0 { return bessel_i0(x); }
+    if n == 1 { return bessel_i1(x); }
+    // Forward recurrence: I_{n+1} = I_{n-1} - (2n/x)*I_n
+    // WARNING: forward recurrence is UNSTABLE for I — use backward recurrence
+    // Miller's backward recurrence: start from large N down to 0/1
+    if x == 0.0 { return 0.0; }
+    let big = 1e10_f64;
+    let mut bi_pp = 0.0_f64;    // I_{m+1}
+    let mut bi_p  = 1.0_f64;    // I_m (normalized)
+    let mut bi    = 0.0_f64;
+    let mut bi0   = 0.0_f64;
+    let m_start = 2 * ((n + (40.0 * (n as f64 + x).sqrt()) as usize) / 2 + 1);
+    let mut ans = 0.0_f64;
+    for j in (1..=m_start).rev() {
+        let jj = j as f64;
+        let tmp = bi_pp + 2.0 * jj * bi_p / x;
+        bi_pp = bi_p;
+        bi_p = tmp;
+        if bi_p.abs() > big {
+            bi_p  /= big;
+            bi_pp /= big;
+            ans   /= big;
+            bi0   /= big;
+        }
+        if j == n { ans = bi_pp; }
+        if j == 1 { bi0 = bi_pp; }
+        bi = bi_p;
+    }
+    drop(bi);
+    ans * bessel_i0(x) / bi0
+}
+
+// ── Fresnel integrals ─────────────────────────────────────────────────────────
+// S(x) = ∫₀ˣ sin(π/2 · t²) dt,  C(x) = ∫₀ˣ cos(π/2 · t²) dt
+// Approximation via power series for |x| ≤ 1.5, auxiliary functions elsewhere.
+fn fresnel_s(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let t = x.abs();
+    let v = if t <= 1.5 {
+        let t2 = t * t;
+        let u = std::f64::consts::PI / 2.0 * t2;
+        // Series: S(x) = sum_{n=0}^∞ (-1)^n (π/2)^(2n+1) x^(4n+3) / ((2n+1)! (4n+3))
+        let mut s = 0.0_f64;
+        let mut term = u * t / 3.0;
+        let mut u2 = u * u;
+        for n in 0..20usize {
+            s += if n % 2 == 0 { term } else { -term };
+            term *= u2 / ((2 * n + 2) * (2 * n + 3)) as f64 * t * t / (4 * n + 7) as f64 * (4 * n + 3) as f64;
+            if term.abs() < 1e-15 * s.abs() { break; }
+        }
+        s
+    } else {
+        // Auxiliary f, g functions (Abramowitz 7.3.5)
+        let pi = std::f64::consts::PI;
+        let t2 = t * t;
+        let (f, g) = fresnel_fg(t);
+        0.5 - f * (pi / 2.0 * t2).cos() - g * (pi / 2.0 * t2).sin()
+    };
+    sign * v
+}
+
+fn fresnel_c(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let t = x.abs();
+    let v = if t <= 1.5 {
+        let t2 = t * t;
+        let u = std::f64::consts::PI / 2.0 * t2;
+        let mut c = t;
+        let mut term = -u * t * t2 / 2.0; // - (π/2)x³/2
+        let mut u2 = u * u;
+        let _ = u2; // supress warning
+        // series
+        let mut cc = t;
+        let mut tt = -u * t * t2;
+        for n in 0..20usize {
+            tt /= (2 * n + 2) as f64 * (2 * n + 3) as f64;
+            cc += if n % 2 == 0 { tt } else { -tt };
+            let _ = term;
+            term = tt;
+            if tt.abs() < 1e-15 * cc.abs() { break; }
+        }
+        drop(c);
+        cc
+    } else {
+        let pi = std::f64::consts::PI;
+        let t2 = t * t;
+        let (f, g) = fresnel_fg(t);
+        0.5 + f * (pi / 2.0 * t2).sin() - g * (pi / 2.0 * t2).cos()
+    };
+    sign * v
+}
+
+// Auxiliary functions for Fresnel — rational approximation for large x
+fn fresnel_fg(x: f64) -> (f64, f64) {
+    let pi = std::f64::consts::PI;
+    let u = 1.0 / (pi * x * x);
+    let f = (1.0 / (pi * x)) * (1.0 + u * (-0.25 + u * (0.1875 + u * (-0.234375))));
+    let g = u / (pi * x) * (1.0 + u * (-0.75 + u * 1.875));
+    (f, g)
+}
+
+// ── Fibonacci ─────────────────────────────────────────────────────────────────
+fn fibonacci(n: u64) -> f64 {
+    if n == 0 { return 0.0; }
+    if n == 1 { return 1.0; }
+    let mut a = 0u64;
+    let mut b = 1u64;
+    for _ in 2..=n {
+        let c = a.saturating_add(b);
+        a = b;
+        b = c;
+    }
+    b as f64
 }
 
 /// Execute a list of statements, mutating the scope, and return the last value.
