@@ -1415,6 +1415,63 @@ impl<'a> Evaluator<'a> {
                 let (n, x) = arg2!();
                 Complex64::new(bessel_i(n.re as i32, x.re), 0.0)
             }
+            // ── Base conversion (display) ─────────────────────────────────
+            "hex" | "tohex" => {
+                if argc != 1 { return Err("hex(n)".to_string()); }
+                let x = arg1!();
+                let n = x.re.round() as i64;
+                return Ok(Value::Symbolic(format!("0x{:X}", n as u64)));
+            }
+            "bin" | "tobin" => {
+                if argc != 1 { return Err("bin(n)".to_string()); }
+                let x = arg1!();
+                let n = x.re.round() as i64;
+                return Ok(Value::Symbolic(format!("0b{:b}", n as u64)));
+            }
+            "oct" | "tooct" => {
+                if argc != 1 { return Err("oct(n)".to_string()); }
+                let x = arg1!();
+                let n = x.re.round() as i64;
+                return Ok(Value::Symbolic(format!("0o{:o}", n as u64)));
+            }
+            "dec" | "todec" => {
+                if argc != 1 { return Err("dec(n)".to_string()); }
+                let x = arg1!();
+                return Ok(Value::Real(x.re.round()));
+            }
+            // ── Bitwise operations ────────────────────────────────────────
+            "band" | "bitand" => {
+                if argc != 2 { return Err("band(a, b)".to_string()); }
+                let (a, b) = arg2!();
+                Complex64::new((a.re.round() as i64 & b.re.round() as i64) as f64, 0.0)
+            }
+            "bor" | "bitor" => {
+                if argc != 2 { return Err("bor(a, b)".to_string()); }
+                let (a, b) = arg2!();
+                Complex64::new((a.re.round() as i64 | b.re.round() as i64) as f64, 0.0)
+            }
+            "bxor" | "bitxor" => {
+                if argc != 2 { return Err("bxor(a, b)".to_string()); }
+                let (a, b) = arg2!();
+                Complex64::new((a.re.round() as i64 ^ b.re.round() as i64) as f64, 0.0)
+            }
+            "bnot" | "bitnot" | "bitcmp" => {
+                if argc != 1 { return Err("bnot(a)".to_string()); }
+                let x = arg1!();
+                Complex64::new(!(x.re.round() as i64) as f64, 0.0)
+            }
+            "shl" | "lshift" | "bitlshift" => {
+                if argc != 2 { return Err("shl(a, n)".to_string()); }
+                let (a, n) = arg2!();
+                let shift = n.re.round() as u32;
+                Complex64::new(((a.re.round() as i64) << shift) as f64, 0.0)
+            }
+            "shr" | "rshift" | "bitrshift" => {
+                if argc != 2 { return Err("shr(a, n)".to_string()); }
+                let (a, n) = arg2!();
+                let shift = n.re.round() as u32;
+                Complex64::new(((a.re.round() as i64) >> shift) as f64, 0.0)
+            }
             // ── Fresnel integrals ─────────────────────────────────────────
             "fresnel_s" | "fresnels" | "FresnelS" => {
                 if argc != 1 { return Err("fresnel_s(x)".to_string()); }

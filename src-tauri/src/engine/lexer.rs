@@ -74,7 +74,40 @@ impl Lexer {
     }
 
     fn read_number(&mut self) -> f64 {
-        let start = self.pos - 1; // we already consumed first digit
+        let start = self.pos - 1; // we already consumed first digit ('0'..'9' or '.')
+        // Check for 0x / 0b / 0o prefixes
+        if self.chars[start] == '0' {
+            match self.peek() {
+                Some('x') | Some('X') => {
+                    self.advance(); // consume 'x'
+                    let hex_start = self.pos;
+                    while self.peek().map(|c| c.is_ascii_hexdigit()).unwrap_or(false) {
+                        self.advance();
+                    }
+                    let s: String = self.chars[hex_start..self.pos].iter().collect();
+                    return u64::from_str_radix(&s, 16).map(|n| n as f64).unwrap_or(f64::NAN);
+                }
+                Some('b') | Some('B') => {
+                    self.advance();
+                    let bin_start = self.pos;
+                    while self.peek().map(|c| c == '0' || c == '1').unwrap_or(false) {
+                        self.advance();
+                    }
+                    let s: String = self.chars[bin_start..self.pos].iter().collect();
+                    return u64::from_str_radix(&s, 2).map(|n| n as f64).unwrap_or(f64::NAN);
+                }
+                Some('o') | Some('O') => {
+                    self.advance();
+                    let oct_start = self.pos;
+                    while self.peek().map(|c| c.is_ascii_digit() && c < '8').unwrap_or(false) {
+                        self.advance();
+                    }
+                    let s: String = self.chars[oct_start..self.pos].iter().collect();
+                    return u64::from_str_radix(&s, 8).map(|n| n as f64).unwrap_or(f64::NAN);
+                }
+                _ => {}
+            }
+        }
         // Integer part
         while self.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
             self.advance();
