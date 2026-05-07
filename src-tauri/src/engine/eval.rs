@@ -1148,6 +1148,145 @@ impl<'a> Evaluator<'a> {
                 let rms = (vals.iter().map(|x| x * x).sum::<f64>() / vals.len() as f64).sqrt();
                 Complex64::new(rms, 0.0)
             }
+            // ── Skewness / kurtosis ───────────────────────────────────────
+            "skewness" | "skew" => {
+                if argc < 3 { return Err("skewness(x1, x2, ...) — mínimo 3 valores".to_string()); }
+                let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
+                let vals = vals?;
+                let n = vals.len() as f64;
+                let mu = vals.iter().sum::<f64>() / n;
+                let sigma = (vals.iter().map(|x| (x - mu).powi(2)).sum::<f64>() / n).sqrt();
+                if sigma < 1e-15 { return Err("skewness: varianza = 0".to_string()); }
+                let s = vals.iter().map(|x| ((x - mu) / sigma).powi(3)).sum::<f64>() / n;
+                Complex64::new(s, 0.0)
+            }
+            "kurtosis" | "kurt" => {
+                if argc < 4 { return Err("kurtosis(x1, x2, ...) — mínimo 4 valores".to_string()); }
+                let vals: Result<Vec<f64>, _> = args.iter().map(|a| self.eval_real(a)).collect();
+                let vals = vals?;
+                let n = vals.len() as f64;
+                let mu = vals.iter().sum::<f64>() / n;
+                let sigma = (vals.iter().map(|x| (x - mu).powi(2)).sum::<f64>() / n).sqrt();
+                if sigma < 1e-15 { return Err("kurtosis: varianza = 0".to_string()); }
+                // excess kurtosis (Fisher's definition, 0 for normal)
+                let k = vals.iter().map(|x| ((x - mu) / sigma).powi(4)).sum::<f64>() / n - 3.0;
+                Complex64::new(k, 0.0)
+            }
+            "percentile" | "prctile" => {
+                if argc < 2 { return Err("percentile(p, x1, x2, ...)".to_string()); }
+                let p = self.eval_real(&args[0])?;
+                if !(0.0..=100.0).contains(&p) { return Err("percentile: p debe estar en [0,100]".to_string()); }
+                let mut vals: Vec<f64> = args[1..].iter()
+                    .map(|a| self.eval_real(a))
+                    .collect::<Result<Vec<f64>, _>>()?;
+                vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                let n = vals.len();
+                let idx = p / 100.0 * (n - 1) as f64;
+                let lo = idx.floor() as usize;
+                let hi = idx.ceil() as usize;
+                let frac = idx - lo as f64;
+                let result = vals[lo] * (1.0 - frac) + vals[hi] * frac;
+                Complex64::new(result, 0.0)
+            }
+            // ── Linear regression ─────────────────────────────────────────
+            "linreg" => {
+                // linreg(x1,y1, x2,y2, ...) → slope m
+                if argc < 4 || argc % 2 != 0 {
+                    return Err("linreg(x1,y1, x2,y2, ...) — pares de puntos".to_string());
+                }
+                let (m, _b, _r2) = linreg_impl(
+                    args.chunks(2)
+                        .map(|p| Ok((self.eval_real(&p[0])?, self.eval_real(&p[1])?)))
+                        .collect::<Result<Vec<_>, String>>()?
+                )?;
+                Complex64::new(m, 0.0)
+            }
+            "linreg_b" => {
+                if argc < 4 || argc % 2 != 0 {
+                    return Err("linreg_b(x1,y1, ...) — intercepto".to_string());
+                }
+                let (_m, b, _r2) = linreg_impl(
+                    args.chunks(2)
+                        .map(|p| Ok((self.eval_real(&p[0])?, self.eval_real(&p[1])?)))
+                        .collect::<Result<Vec<_>, String>>()?
+                )?;
+                Complex64::new(b, 0.0)
+            }
+            "linreg_r2" => {
+                if argc < 4 || argc % 2 != 0 {
+                    return Err("linreg_r2(x1,y1, ...) — R²".to_string());
+                }
+                let (_m, _b, r2) = linreg_impl(
+                    args.chunks(2)
+                        .map(|p| Ok((self.eval_real(&p[0])?, self.eval_real(&p[1])?)))
+                        .collect::<Result<Vec<_>, String>>()?
+                )?;
+                Complex64::new(r2, 0.0)
+            }
+            "linreg_eq" => {
+                // Returns "y = mx + b" as symbolic
+                if argc < 4 || argc % 2 != 0 {
+                    return Err("linreg_eq(x1,y1, ...) — ecuación de regresión".to_string());
+                }
+                let (m, b, r2) = linreg_impl(
+                    args.chunks(2)
+                        .map(|p| Ok((self.eval_real(&p[0])?, self.eval_real(&p[1])?)))
+                        .collect::<Result<Vec<_>, String>>()?
+                )?;
+                let sign = if b >= 0.0 { "+" } else { "-" };
+                return Ok(Value::Symbolic(format!(
+                    "y = {:.6}x {} {:.6}  (R²={:.4})", m, sign, b.abs(), r2
+                )));
+            }
+            // ── Orthogonal polynomials ────────────────────────────────────
+            "legendre" | "Pn" => {
+                if argc != 2 { return Err("legendre(n, x)".to_string()); }
+                let (n, x) = arg2!();
+                Complex64::new(legendre_p(n.re.round() as usize, x.re), 0.0)
+            }
+            "hermite" | "Hn" => {
+                // Physicist's Hermite polynomial
+                if argc != 2 { return Err("hermite(n, x)".to_string()); }
+                let (n, x) = arg2!();
+                Complex64::new(hermite_h(n.re.round() as usize, x.re), 0.0)
+            }
+            "chebyshev" | "chebT" | "Tn" => {
+                // Chebyshev first kind
+                if argc != 2 { return Err("chebyshev(n, x)".to_string()); }
+                let (n, x) = arg2!();
+                Complex64::new(chebyshev_t(n.re.round() as usize, x.re), 0.0)
+            }
+            "chebyshev2" | "chebU" | "Un" => {
+                // Chebyshev second kind
+                if argc != 2 { return Err("chebyshev2(n, x)".to_string()); }
+                let (n, x) = arg2!();
+                Complex64::new(chebyshev_u(n.re.round() as usize, x.re), 0.0)
+            }
+            // ── Airy functions ────────────────────────────────────────────
+            "airy_ai" | "airyai" | "Ai" => {
+                if argc != 1 { return Err("airy_ai(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(airy_ai(x.re), 0.0)
+            }
+            "airy_bi" | "airybi" | "Bi" => {
+                if argc != 1 { return Err("airy_bi(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(airy_bi(x.re), 0.0)
+            }
+            // ── Dawson function ───────────────────────────────────────────
+            "dawson" | "dawson_f" => {
+                if argc != 1 { return Err("dawson(x)".to_string()); }
+                let x = arg1!();
+                Complex64::new(dawson(x.re), 0.0)
+            }
+            // ── Riemann zeta function ─────────────────────────────────────
+            "zeta" | "riemann_zeta" => {
+                if argc != 1 { return Err("zeta(s)".to_string()); }
+                let x = arg1!();
+                let s = x.re;
+                if (s - 1.0).abs() < 1e-12 { return Err("zeta: polo en s=1".to_string()); }
+                Complex64::new(riemann_zeta(s), 0.0)
+            }
             // ── Student's t distribution ──────────────────────────────────
             "tpdf" | "t_pdf" => {
                 if argc != 2 { return Err("tpdf(x, df)".to_string()); }
@@ -2214,6 +2353,205 @@ fn fibonacci(n: u64) -> f64 {
         b = c;
     }
     b as f64
+}
+
+// ── Orthogonal polynomials ────────────────────────────────────────────────────
+
+fn legendre_p(n: usize, x: f64) -> f64 {
+    if n == 0 { return 1.0; }
+    if n == 1 { return x; }
+    let mut p_prev = 1.0_f64;
+    let mut p_curr = x;
+    for k in 1..n {
+        let p_next = ((2 * k + 1) as f64 * x * p_curr - k as f64 * p_prev) / (k + 1) as f64;
+        p_prev = p_curr;
+        p_curr = p_next;
+    }
+    p_curr
+}
+
+fn hermite_h(n: usize, x: f64) -> f64 {
+    // Physicist's Hermite: H_{n+1} = 2x*H_n - 2n*H_{n-1}
+    if n == 0 { return 1.0; }
+    if n == 1 { return 2.0 * x; }
+    let mut h_prev = 1.0_f64;
+    let mut h_curr = 2.0 * x;
+    for k in 1..n {
+        let h_next = 2.0 * x * h_curr - 2.0 * k as f64 * h_prev;
+        h_prev = h_curr;
+        h_curr = h_next;
+    }
+    h_curr
+}
+
+fn chebyshev_t(n: usize, x: f64) -> f64 {
+    if n == 0 { return 1.0; }
+    if n == 1 { return x; }
+    let mut t_prev = 1.0_f64;
+    let mut t_curr = x;
+    for _ in 1..n {
+        let t_next = 2.0 * x * t_curr - t_prev;
+        t_prev = t_curr;
+        t_curr = t_next;
+    }
+    t_curr
+}
+
+fn chebyshev_u(n: usize, x: f64) -> f64 {
+    if n == 0 { return 1.0; }
+    if n == 1 { return 2.0 * x; }
+    let mut u_prev = 1.0_f64;
+    let mut u_curr = 2.0 * x;
+    for _ in 1..n {
+        let u_next = 2.0 * x * u_curr - u_prev;
+        u_prev = u_curr;
+        u_curr = u_next;
+    }
+    u_curr
+}
+
+// ── Airy functions ────────────────────────────────────────────────────────────
+// Series solution from the ODE y'' = xy.
+// c_{n+3} = c_n / ((n+3)(n+2)),  c_0 = Ai(0), c_1 = Ai'(0), c_2 = 0
+const AIRY_AI0: f64 = 0.3550280538878172;   // Ai(0)  = 3^(-2/3)/Γ(2/3)
+const AIRY_AIP0: f64 = -0.2588194037928068; // Ai'(0) = -3^(-1/3)/Γ(1/3)
+const AIRY_BI0: f64 = 0.6149266274460007;   // Bi(0)
+const AIRY_BIP0: f64 = 0.4482883570799789;  // Bi'(0)
+
+fn airy_series(x: f64, c0: f64, c1: f64) -> f64 {
+    let mut c = [0.0_f64; 3];
+    c[0] = c0; c[1] = c1; c[2] = 0.0;
+    let mut result = 0.0_f64;
+    let mut xn = 1.0_f64; // x^n
+    for n in 0_usize..120 {
+        result += c[n % 3] * xn;
+        let next_idx = (n + 3) % 3;
+        // c_{n+3} = c_n / ((n+3)(n+2))
+        c[next_idx] = c[n % 3] / ((n + 3) * (n + 2)) as f64;
+        xn *= x;
+        if xn.abs() * c[next_idx].abs() < 1e-15 * result.abs().max(1e-30) { break; }
+    }
+    result
+}
+
+fn airy_ai(x: f64) -> f64 {
+    if x.abs() <= 8.0 {
+        airy_series(x, AIRY_AI0, AIRY_AIP0)
+    } else if x > 0.0 {
+        // Asymptotic: Ai(x) ~ e^{-ξ}/(2√π x^{1/4}) for large positive x, ξ = 2/3 x^{3/2}
+        let xi = 2.0 / 3.0 * x.powf(1.5);
+        (-xi).exp() / (2.0 * std::f64::consts::PI.sqrt() * x.powf(0.25))
+    } else {
+        // Large negative: Ai(x) ~ sin(ξ + π/4)/(√π (-x)^{1/4}), ξ = 2/3(-x)^{3/2}
+        let ax = (-x).powf(1.5);
+        let xi = 2.0 / 3.0 * ax;
+        (xi + std::f64::consts::FRAC_PI_4).sin() / (std::f64::consts::PI.sqrt() * (-x).powf(0.25))
+    }
+}
+
+fn airy_bi(x: f64) -> f64 {
+    if x.abs() <= 8.0 {
+        airy_series(x, AIRY_BI0, AIRY_BIP0)
+    } else if x > 0.0 {
+        let xi = 2.0 / 3.0 * x.powf(1.5);
+        xi.exp() / (std::f64::consts::PI.sqrt() * x.powf(0.25))
+    } else {
+        let ax = (-x).powf(1.5);
+        let xi = 2.0 / 3.0 * ax;
+        -(xi + std::f64::consts::FRAC_PI_4).cos() / (std::f64::consts::PI.sqrt() * (-x).powf(0.25))
+    }
+}
+
+// ── Dawson function ───────────────────────────────────────────────────────────
+// D(x) = e^{-x²} ∫₀ˣ e^{t²} dt
+// Series: D(x) = Σ_{n=0}^∞ (-1)^n · 2^n · x^{2n+1} / (2n+1)!!  for small x
+// Asymptotic: D(x) ≈ 1/(2x) + 1/(4x³) + 3/(8x⁵) + ...          for large x
+fn dawson(x: f64) -> f64 {
+    if x.abs() < 1e-14 { return x; }
+    if x.abs() > 6.0 {
+        // Asymptotic expansion
+        let x2 = x * x;
+        let r = 0.5 / x * (1.0 + 0.5 / x2 * (1.0 + 1.5 / x2 * (1.0 + 2.5 / x2)));
+        return if x < 0.0 { -r } else { r };
+    }
+    // Rybicki's algorithm (5-point Gaussian): accurate for |x| ≤ 6
+    // Simpler: Maclaurin series valid to |x| ≤ 4, asymptotic beyond
+    if x.abs() <= 4.0 {
+        let x2 = x * x;
+        let mut sum = 1.0_f64;
+        let mut term = 1.0_f64;
+        for n in 1_usize..60 {
+            term *= -2.0 * x2 / (2 * n + 1) as f64;
+            sum += term;
+            if term.abs() < 1e-15 * sum.abs() { break; }
+        }
+        x * sum
+    } else {
+        // Integrate numerically using Simpson for 4 < |x| ≤ 6
+        let sign = if x < 0.0 { -1.0 } else { 1.0 };
+        let ax = x.abs();
+        let x2 = ax * ax;
+        let n = 200_usize;
+        let h = ax / n as f64;
+        let mut s = 0.0_f64;
+        for i in 0..=n {
+            let t = i as f64 * h;
+            let w = if i == 0 || i == n { 1.0 } else if i % 2 == 1 { 4.0 } else { 2.0 };
+            s += w * (t * t - x2).exp();
+        }
+        sign * s * h / 3.0
+    }
+}
+
+// ── Riemann zeta function ─────────────────────────────────────────────────────
+// Uses Dirichlet eta: η(s) = Σ (-1)^{n-1}/n^s = (1-2^{1-s})·ζ(s)
+// For s > 0, s ≠ 1: ζ(s) = η(s)/(1-2^{1-s})
+// For s ≤ 0: reflection formula ζ(s) = 2^s π^{s-1} sin(πs/2) Γ(1-s) ζ(1-s)
+fn riemann_zeta(s: f64) -> f64 {
+    use std::f64::consts::PI;
+    if s > 50.0 { return 1.0; }
+    if s < 0.0 {
+        // Reflection: ζ(s) = 2^s π^{s-1} sin(πs/2) Γ(1-s) ζ(1-s)
+        let zeta_1ms = riemann_zeta(1.0 - s);
+        return 2.0_f64.powf(s) * PI.powf(s - 1.0) * (PI * s / 2.0).sin() * gamma(1.0 - s) * zeta_1ms;
+    }
+    if (s - 1.0).abs() < 0.01 { return f64::INFINITY; }
+    // Dirichlet eta with Euler acceleration (N=50 terms)
+    let n = 50_usize;
+    // Cohen-Villegas-Zagier algorithm for alternating Dirichlet series
+    let mut d = vec![0.0_f64; n + 1];
+    d[0] = 1.0;
+    for k in 1..=n {
+        d[k] = d[k - 1] * (n + k - 1) as f64 / k as f64;
+    }
+    let d_sum: f64 = d.iter().sum();
+    let mut eta = 0.0_f64;
+    for k in 0..n {
+        let dk: f64 = d[k..=n].iter().sum::<f64>() / d_sum;
+        let sign = if k % 2 == 0 { 1.0 } else { -1.0 };
+        eta += sign * dk / ((k + 1) as f64).powf(s);
+    }
+    eta / (1.0 - 2.0_f64.powf(1.0 - s))
+}
+
+// ── Linear regression ─────────────────────────────────────────────────────────
+fn linreg_impl(points: Vec<(f64, f64)>) -> Result<(f64, f64, f64), String> {
+    let n = points.len() as f64;
+    if points.len() < 2 { return Err("linreg: se necesitan al menos 2 puntos".to_string()); }
+    let sx:  f64 = points.iter().map(|(x, _)| x).sum();
+    let sy:  f64 = points.iter().map(|(_, y)| y).sum();
+    let sxx: f64 = points.iter().map(|(x, _)| x * x).sum();
+    let sxy: f64 = points.iter().map(|(x, y)| x * y).sum();
+    let syy: f64 = points.iter().map(|(_, y)| y * y).sum();
+    let det = n * sxx - sx * sx;
+    if det.abs() < 1e-14 { return Err("linreg: puntos colineales o x constante".to_string()); }
+    let m = (n * sxy - sx * sy) / det;
+    let b = (sy - m * sx) / n;
+    // R²
+    let ss_tot = syy - sy * sy / n;
+    let ss_res = syy - m * sxy - b * sy;
+    let r2 = if ss_tot.abs() < 1e-14 { 1.0 } else { 1.0 - ss_res / ss_tot };
+    Ok((m, b, r2))
 }
 
 /// Execute a list of statements, mutating the scope, and return the last value.

@@ -1961,22 +1961,91 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>deg2rad rad2deg</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Funciones esp. / Utilidades</div>
-          <div class="eng-help-row"><code>gamma(x)</code> Γ función</div>
+          <div class="eng-help-cat">Funciones especiales</div>
+          <div class="eng-help-row"><code>gamma(x)</code> Γ(x)</div>
+          <div class="eng-help-row"><code>lngamma(x)</code> ln Γ(x)</div>
           <div class="eng-help-row"><code>erf(x) erfc(x)</code></div>
-          <div class="eng-help-row"><code>beta(a,b)</code></div>
-          <div class="eng-help-row"><code>besselj(n,x)</code> Bessel J</div>
-          <div class="eng-help-row"><code>bessely(n,x)</code> Bessel Y</div>
-          <div class="eng-help-row"><code>taylor(f,a,n,x)</code> serie Taylor</div>
-          <div class="eng-help-row"><code>maclaurin(f,n,x)</code> en a=0</div>
+          <div class="eng-help-row"><code>erfinv(x)</code> erf⁻¹</div>
+          <div class="eng-help-row"><code>beta(a,b)</code> B(a,b)</div>
+          <div class="eng-help-row"><code>digamma(x)</code> ψ(x)</div>
+          <div class="eng-help-row"><code>polygamma(n,x)</code> ψ⁽ⁿ⁾</div>
+          <div class="eng-help-row"><code>gammainc(a,x)</code> P(a,x)</div>
+          <div class="eng-help-row"><code>gammaincq(a,x)</code> Q(a,x)</div>
+          <div class="eng-help-row"><code>betainc(a,b,x)</code> I_x(a,b)</div>
           <div class="eng-help-row"><code>w(x)</code> Lambert W</div>
-          <div class="eng-help-row"><code>sinc(x)</code> sin(x)/x</div>
-          <div class="eng-help-row"><code>nthroot(n, x)</code> raíz n-ésima</div>
-          <div class="eng-help-row"><code>isprime(n)</code> ¿es primo?</div>
-          <div class="eng-help-row"><code>clamp(x, min, max)</code></div>
-          <div class="eng-help-row"><code>lerp(a, b, t)</code></div>
-          <div class="eng-help-row"><code>sign(x)</code></div>
-          <div class="eng-help-row"><code>rand()</code> aleatorio [0,1)</div>
+          <div class="eng-help-row"><code>dawson(x)</code> Dawson F</div>
+          <div class="eng-help-row"><code>zeta(s)</code> Riemann ζ</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Bessel / Airy / Fresnel</div>
+          <div class="eng-help-row"><code>besselj(n,x)</code> J_n</div>
+          <div class="eng-help-row"><code>bessely(n,x)</code> Y_n</div>
+          <div class="eng-help-row"><code>besseli(n,x)</code> I_n modif.</div>
+          <div class="eng-help-row"><code>airy_ai(x)</code> Ai(x)</div>
+          <div class="eng-help-row"><code>airy_bi(x)</code> Bi(x)</div>
+          <div class="eng-help-row"><code>fresnel_s(x)</code> S(x)</div>
+          <div class="eng-help-row"><code>fresnel_c(x)</code> C(x)</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Polinomios ortogonales</div>
+          <div class="eng-help-row"><code>legendre(n,x)</code> Pₙ(x)</div>
+          <div class="eng-help-row"><code>hermite(n,x)</code> Hₙ(x)</div>
+          <div class="eng-help-row"><code>chebyshev(n,x)</code> Tₙ(x)</div>
+          <div class="eng-help-row"><code>chebyshev2(n,x)</code> Uₙ(x)</div>
+          <div class="eng-help-row"><code>taylor(f,a,n,x)</code> Taylor</div>
+          <div class="eng-help-row"><code>maclaurin(f,n,x)</code> a=0</div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Distribuciones continuas</div>
+          <div class="eng-help-row"><code>normpdf/cdf/inv(x,μ,σ)</code></div>
+          <div class="eng-help-row"><code>tpdf/tcdf/tinv(x,df)</code></div>
+          <div class="eng-help-row"><code>chi2pdf/cdf/inv(x,df)</code></div>
+          <div class="eng-help-row"><code>fpdf/fcdf/finv(x,d1,d2)</code></div>
+          <div class="eng-help-row"><code>exppdf/cdf/inv(x,λ)</code></div>
+          <div class="eng-help-row"><code>betapdf/cdf/inv(x,a,b)</code></div>
+          <div class="eng-help-row"><code>gammapdf/cdf/inv(x,k,r)</code></div>
+          <div class="eng-help-row"><code>lognormpdf/cdf(x,μ,σ)</code></div>
+          <div class="eng-help-row"><code>weibullpdf/cdf(x,k,λ)</code></div>
+          <div class="eng-help-row"><code>cauchypdf/cdf(x,x0,γ)</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Distribuciones discretas</div>
+          <div class="eng-help-row"><code>poissonpmf/cdf(k,λ)</code></div>
+          <div class="eng-help-row"><code>binompmf/cdf(k,n,p)</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Estadística</div>
+          <div class="eng-help-row"><code>mean/avg(…)</code></div>
+          <div class="eng-help-row"><code>stdev variance(…)</code></div>
+          <div class="eng-help-row"><code>median min max(…)</code></div>
+          <div class="eng-help-row"><code>skewness kurtosis(…)</code></div>
+          <div class="eng-help-row"><code>percentile(p, x1,…)</code></div>
+          <div class="eng-help-row"><code>sum product rms(…)</code></div>
+          <div class="eng-help-row"><code>linreg(x1,y1,…)</code> pendiente</div>
+          <div class="eng-help-row"><code>linreg_b linreg_r2 linreg_eq</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Bases / Bits</div>
+          <div class="eng-help-row"><code>0xFF 0b1010 0o77</code> literales</div>
+          <div class="eng-help-row"><code>hex(n) bin(n) oct(n)</code></div>
+          <div class="eng-help-row"><code>band bor bxor bnot</code></div>
+          <div class="eng-help-row"><code>shl(a,n) shr(a,n)</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Combinatoria / Álgebra</div>
+          <div class="eng-help-row"><code>nCr(n,k) nPr(n,k)</code></div>
+          <div class="eng-help-row"><code>gcd lcm</code></div>
+          <div class="eng-help-row"><code>isprime fibonacci catalan</code></div>
+          <div class="eng-help-row"><code>sinc nthroot clamp lerp</code></div>
+          <div class="eng-help-row"><code>sign rand() parallel rms</code></div>
+        </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">Álgebra lineal</div>
+          <div class="eng-help-row"><code>[1,2;3,4]</code> matriz</div>
+          <div class="eng-help-row"><code>det inv transpose</code></div>
+          <div class="eng-help-row"><code>eig rank trace norm</code></div>
+          <div class="eng-help-row"><code>dot cross msolve</code></div>
+          <div class="eng-help-row"><code>ones zeros eye</code></div>
         </div>
       </div>
       <div class="eng-sidebar-ops">
