@@ -6,8 +6,14 @@
   "build": {
     "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:1422",
-    "beforeDevCommand": "cd ../frontend && ~/.bun/bin/bun run dev --host --port 1422",
-    "beforeBuildCommand": "cd ../frontend && ~/.bun/bin/bun run build"
+    "beforeDevCommand": {
+      "script": "bun run dev --host --port 1422",
+      "cwd": "../frontend"
+    },
+    "beforeBuildCommand": {
+      "script": "bun run build",
+      "cwd": "../frontend"
+    }
   },
   "app": {
     "enableGTKAppId": true,
