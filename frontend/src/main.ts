@@ -1,4 +1,5 @@
 import "./style.css";
+import { tr } from "./i18n.ts";
 import {
   evalExpression,
   factorizeInteger,
@@ -139,6 +140,7 @@ const SUBSCRIPT_DIGITS: Record<string, string> = {
 const appEl = document.querySelector<HTMLDivElement>("#app")!;
 
 // ── Boot ───────────────────────────────────────────────────────────────
+document.title = tr("Calculadora");
 buildShell();
 setMode("basic");
 
@@ -148,13 +150,13 @@ function buildShell(): void {
     <div class="titlebar">
       <div class="titlebar-drag" data-tauri-drag-region>
         <div class="titlebar-icon">∑</div>
-        <span class="titlebar-title">Calculadora</span>
+        <span class="titlebar-title">${tr('Calculadora')}</span>
       </div>
       <div class="titlebar-controls">
-        <button class="titlebar-btn" id="side-panel-toggle" title="Gráfica lateral">◫</button>
-        <button class="titlebar-btn" id="history-toggle" title="Historial">⌛</button>
-        <button class="titlebar-btn minimize" title="Minimizar">─</button>
-        <button class="titlebar-btn close" title="Cerrar">✕</button>
+        <button class="titlebar-btn" id="side-panel-toggle" title="${tr('Gráfica lateral')}">◫</button>
+        <button class="titlebar-btn" id="history-toggle" title="${tr('Historial')}">⌛</button>
+        <button class="titlebar-btn minimize" title="${tr('Minimizar')}">─</button>
+        <button class="titlebar-btn close" title="${tr('Cerrar')}">✕</button>
       </div>
     </div>
     <div class="mode-tabs">
@@ -167,8 +169,8 @@ function buildShell(): void {
         <div id="content"></div>
         <div class="history-sidebar" id="history-sidebar">
           <div class="history-sidebar-header">
-            <span class="history-sidebar-title">Historial</span>
-            <button class="history-sidebar-clear" id="history-sidebar-clear">Limpiar</button>
+            <span class="history-sidebar-title">${tr('Historial')}</span>
+            <button class="history-sidebar-clear" id="history-sidebar-clear">${tr('Limpiar')}</button>
             <button class="history-sidebar-close" id="history-sidebar-close">✕</button>
           </div>
           <div class="history-sidebar-list" id="history-sidebar-list"></div>
@@ -176,8 +178,8 @@ function buildShell(): void {
       </div>
       <div class="side-panel" id="side-panel">
         <div class="side-panel-header">
-          <span class="side-panel-title">Gráfica</span>
-          <button class="side-panel-goto" id="side-panel-goto">→ editar</button>
+          <span class="side-panel-title">${tr('Gráfica')}</span>
+          <button class="side-panel-goto" id="side-panel-goto">${tr('→ editar')}</button>
           <button class="side-panel-close" id="side-panel-close">✕</button>
         </div>
         <div class="side-graph-canvas-wrap">
@@ -199,7 +201,7 @@ function buildShell(): void {
         </div>
 
         <div class="side-panel-controls">
-          <button class="graph-ctrl-btn" id="side-graph-reset">Centrar</button>
+          <button class="graph-ctrl-btn" id="side-graph-reset">${tr('Centrar')}</button>
         </div>
       </div>
     </div>
@@ -253,7 +255,7 @@ function updateHistoryDrawer(): void {
   if (!historyOpen) return;
 
   if (state.history.length === 0) {
-    list.innerHTML = `<div class="history-sidebar-empty">Sin historial</div>`;
+    list.innerHTML = `<div class="history-sidebar-empty">${tr('Sin historial')}</div>`;
     return;
   }
 
@@ -264,8 +266,8 @@ function updateHistoryDrawer(): void {
         <div class="hse-expr">${h.expr}</div>
         <div class="hse-result">${h.result}</div>
         <div class="hse-actions">
-          <button class="hse-use" data-idx="${idx}" title="Usar resultado">← usar</button>
-          <button class="hse-graph" data-idx="${idx}" title="Enviar a gráfica">→ 📈</button>
+          <button class="hse-use" data-idx="${idx}" title="${tr('Usar resultado')}">← usar</button>
+          <button class="hse-graph" data-idx="${idx}" title="${tr('Enviar a gráfica')}">→ 📈</button>
         </div>
       </div>
     `;
@@ -356,7 +358,7 @@ function updateShellControls(): void {
   if (!available) {
     sideToggle.classList.remove("is-active");
   }
-  sideToggle.title = available ? "Gráfica lateral" : "Gráfica lateral no disponible en este modo";
+  sideToggle.title = available ? tr("Gráfica lateral") : tr("Gráfica lateral no disponible en este modo");
 }
 
 function resizeForCurrentMode(): void {
@@ -450,7 +452,7 @@ function updateSidePanelFns(): void {
   if (!list) return;
   const active = graphFunctions.filter(fn => fn.expr.trim());
   if (active.length === 0) {
-    list.innerHTML = `<span class="side-fn-empty">Sin funciones</span>`;
+    list.innerHTML = `<span class="side-fn-empty">${tr('Sin funciones')}</span>`;
     return;
   }
   list.innerHTML = active.map(fn => `
@@ -530,7 +532,7 @@ function initOscilloscopeInputs(): void {
          }
          xIn.value = "~" + parseFloat(bestX.toPrecision(4)).toString();
       } else {
-         xIn.value = "No encontrado";
+         xIn.value = tr("No encontrado");
       }
 
     } catch {
@@ -541,12 +543,12 @@ function initOscilloscopeInputs(): void {
 
 function tabLabel(m: Mode): string {
   return {
-    basic: "Básica",
-    scientific: "Científica",
-    conversions: "Conversiones",
-    graph: "Gráficos",
-    engineering: "Ingeniería",
-    quimica: "Química",
+    basic: tr("Básica"),
+    scientific: tr("Científica"),
+    conversions: tr("Conversiones"),
+    graph: tr("Gráficos"),
+    engineering: tr("Ingeniería"),
+    quimica: tr("Química"),
   }[m];
 }
 
@@ -956,7 +958,7 @@ function handleAction(action: string): void {
     if (!state.input.trim()) return;
     try {
       const res = evalExpression(state.input, state.angleMode, undefined, { _: state.lastAns });
-      if (typeof res.value !== "number") throw new Error("Solo se pueden factorizar enteros reales");
+      if (typeof res.value !== "number") throw new Error(tr("Solo se pueden factorizar enteros reales"));
       const factored = factorizeInteger(res.value);
       pushUndo(state.input);
       state.input = factored;
@@ -1669,7 +1671,7 @@ function buildConvLayout(): HTMLElement {
 
   wrap.innerHTML = `
     <div class="conv-header">
-      <label class="conv-cat-label">Categoría:</label>
+      <label class="conv-cat-label">${tr('Categoría:')}</label>
       <select class="conv-cat-select" id="conv-cat-selector"></select>
     </div>
     <div class="conv-body">
@@ -1765,7 +1767,7 @@ function renderConvCategories(): void {
 
   select.innerHTML = CATEGORIES.map(cat => `
     <option value="${cat.id}" ${cat.id === convCatId ? "selected" : ""}>
-      ${cat.name}
+      ${tr(cat.name)}
     </option>
   `).join("");
 }
@@ -1779,8 +1781,8 @@ function updateConv(): void {
   const toInput = document.getElementById("conv-to-input") as HTMLInputElement | null;
   if (!fromSel || !toSel || !fromInput || !toInput) return;
 
-  fromSel.innerHTML = cat.units.map(u => `<option value="${u.id}">${u.name}</option>`).join("");
-  toSel.innerHTML = cat.units.map(u => `<option value="${u.id}">${u.name}</option>`).join("");
+  fromSel.innerHTML = cat.units.map(u => `<option value="${u.id}">${tr(u.name)}</option>`).join("");
+  toSel.innerHTML = cat.units.map(u => `<option value="${u.id}">${tr(u.name)}</option>`).join("");
 
   fromSel.value = convFromId;
   toSel.value = convToId;
@@ -1808,8 +1810,8 @@ function computeConv(direction: "from" | "to"): void {
       toInput.value = convToVal;
 
       const cat = CATEGORIES.find(c => c.id === convCatId)!;
-      const fromName = cat.units.find(u => u.id === convFromId)?.name ?? convFromId;
-      const toName = cat.units.find(u => u.id === convToId)?.name ?? convToId;
+      const fromName = tr(cat.units.find(u => u.id === convFromId)?.name ?? convFromId);
+      const toName = tr(cat.units.find(u => u.id === convToId)?.name ?? convToId);
       if (formulaEl) formulaEl.textContent = `${val} ${fromName} = ${convToVal} ${toName}`;
     }
   } catch (err) {
@@ -1825,50 +1827,50 @@ function buildEngineeringLayout(): HTMLElement {
   wrap.innerHTML = `
     <div class="eng-sidebar">
       <div class="eng-sidebar-header">
-        <span class="eng-sidebar-title" id="eng-sidebar-title">Variables</span>
-        <button class="eng-btn-small" id="eng-help-btn" title="Referencia de funciones">?</button>
-        <button class="eng-btn-small" id="eng-clear-vars" title="Limpiar variables">✕</button>
+        <span class="eng-sidebar-title" id="eng-sidebar-title">${tr('Variables')}</span>
+        <button class="eng-btn-small" id="eng-help-btn" title="${tr('Referencia de funciones')}">?</button>
+        <button class="eng-btn-small" id="eng-clear-vars" title="${tr('Limpiar variables')}">✕</button>
       </div>
       <div class="eng-vars-list" id="eng-vars-list">
-        <span class="eng-empty-hint">Sin variables definidas</span>
+        <span class="eng-empty-hint">${tr('Sin variables definidas')}</span>
       </div>
       <div class="eng-help-panel" id="eng-help-panel">
         <div class="eng-help-section">
-          <div class="eng-help-cat">Sintaxis</div>
-          <div class="eng-help-row"><code>a = expr</code> asignar var</div>
-          <div class="eng-help-row"><code>ans</code> último resultado</div>
-          <div class="eng-help-row"><code>Shift+Enter</code> ejecutar</div>
-          <div class="eng-help-row"><code>↑ ↓</code> historial REPL</div>
-          <div class="eng-help-row"><code>Ctrl+click</code> copiar resultado</div>
+          <div class="eng-help-cat">${tr('Sintaxis')}</div>
+          <div class="eng-help-row"><code>a = expr</code> ${tr('asignar var')}</div>
+          <div class="eng-help-row"><code>ans</code> ${tr('último resultado')}</div>
+          <div class="eng-help-row"><code>Shift+Enter</code> ${tr('ejecutar')}</div>
+          <div class="eng-help-row"><code>↑ ↓</code> ${tr('historial REPL')}</div>
+          <div class="eng-help-row"><code>Ctrl+click</code> ${tr('copiar resultado')}</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Constantes</div>
+          <div class="eng-help-cat">${tr('Constantes')}</div>
           <div class="eng-help-row"><code>pi</code> π ≈ 3.14159</div>
           <div class="eng-help-row"><code>e</code> ≈ 2.71828</div>
-          <div class="eng-help-row"><code>i</code> unidad imaginaria</div>
-          <div class="eng-help-row"><code>phi</code> φ (áureo)</div>
+          <div class="eng-help-row"><code>i</code> ${tr('unidad imaginaria')}</div>
+          <div class="eng-help-row"><code>phi</code> ${tr('φ (áureo)')}</div>
           <div class="eng-help-row"><code>tau</code> τ = 2π</div>
           <div class="eng-help-row"><code>inf</code> ∞</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Trigonometría</div>
+          <div class="eng-help-cat">${tr('Trigonometría')}</div>
           <div class="eng-help-row"><code>sin cos tan</code></div>
           <div class="eng-help-row"><code>asin acos atan</code></div>
           <div class="eng-help-row"><code>atan2(y, x)</code></div>
           <div class="eng-help-row"><code>sinh cosh tanh</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Log / Exp</div>
-          <div class="eng-help-row"><code>sqrt(x)</code> raíz cuadrada</div>
-          <div class="eng-help-row"><code>cbrt(x)</code> raíz cúbica</div>
+          <div class="eng-help-cat">${tr('Log / Exp')}</div>
+          <div class="eng-help-row"><code>sqrt(x)</code> ${tr('raíz cuadrada')}</div>
+          <div class="eng-help-row"><code>cbrt(x)</code> ${tr('raíz cúbica')}</div>
           <div class="eng-help-row"><code>exp(x)</code> eˣ</div>
-          <div class="eng-help-row"><code>ln(x)</code> log natural</div>
-          <div class="eng-help-row"><code>log(x, b)</code> log base b</div>
+          <div class="eng-help-row"><code>ln(x)</code> ${tr('log natural')}</div>
+          <div class="eng-help-row"><code>log(x, b)</code> ${tr('log base b')}</div>
           <div class="eng-help-row"><code>log2 log10</code></div>
           <div class="eng-help-row"><code>abs floor ceil round</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Estadísticas</div>
+          <div class="eng-help-cat">${tr('Estadísticas')}</div>
           <div class="eng-help-row"><code>mean(a,b,...)</code></div>
           <div class="eng-help-row"><code>median(a,b,...)</code></div>
           <div class="eng-help-row"><code>std(a,b,...)</code></div>
@@ -1877,53 +1879,53 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>hypot(a,b,...)</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Combinatoria</div>
-          <div class="eng-help-row"><code>n!</code> factorial</div>
-          <div class="eng-help-row"><code>nCr(n,r)</code> combinaciones</div>
-          <div class="eng-help-row"><code>nPr(n,r)</code> permutaciones</div>
+          <div class="eng-help-cat">${tr('Combinatoria')}</div>
+          <div class="eng-help-row"><code>n!</code> ${tr('factorial')}</div>
+          <div class="eng-help-row"><code>nCr(n,r)</code> ${tr('combinaciones')}</div>
+          <div class="eng-help-row"><code>nPr(n,r)</code> ${tr('permutaciones')}</div>
           <div class="eng-help-row"><code>gcd(a,b)</code> <code>lcm(a,b)</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Complejos</div>
+          <div class="eng-help-cat">${tr('Complejos')}</div>
           <div class="eng-help-row"><code>re(z) im(z)</code></div>
-          <div class="eng-help-row"><code>arg(z)</code> argumento</div>
-          <div class="eng-help-row"><code>conj(z)</code> conjugado</div>
-          <div class="eng-help-row"><code>norm(z)</code> módulo</div>
+          <div class="eng-help-row"><code>arg(z)</code> ${tr('argumento')}</div>
+          <div class="eng-help-row"><code>conj(z)</code> ${tr('conjugado')}</div>
+          <div class="eng-help-row"><code>norm(z)</code> ${tr('módulo')}</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Matrices</div>
-          <div class="eng-help-row"><code>[1,2; 3,4]</code> literal</div>
-          <div class="eng-help-row"><code>eye(n)</code> identidad n×n</div>
-          <div class="eng-help-row"><code>zeros(n,m)</code> ceros</div>
-          <div class="eng-help-row"><code>ones(n,m)</code> unos</div>
-          <div class="eng-help-row"><code>det(A)</code> determinante</div>
-          <div class="eng-help-row"><code>inv(A)</code> inversa</div>
+          <div class="eng-help-cat">${tr('Matrices')}</div>
+          <div class="eng-help-row"><code>[1,2; 3,4]</code> ${tr('literal')}</div>
+          <div class="eng-help-row"><code>eye(n)</code> ${tr('identidad n×n')}</div>
+          <div class="eng-help-row"><code>zeros(n,m)</code> ${tr('ceros')}</div>
+          <div class="eng-help-row"><code>ones(n,m)</code> ${tr('unos')}</div>
+          <div class="eng-help-row"><code>det(A)</code> ${tr('determinante')}</div>
+          <div class="eng-help-row"><code>inv(A)</code> ${tr('inversa')}</div>
           <div class="eng-help-row"><code>transpose(A)</code></div>
-          <div class="eng-help-row"><code>trace(A)</code> traza</div>
-          <div class="eng-help-row"><code>rank(A)</code> rango</div>
-          <div class="eng-help-row"><code>norm(A)</code> norma Frobenius</div>
-          <div class="eng-help-row"><code>eig(A)</code> eigenvalores*</div>
+          <div class="eng-help-row"><code>trace(A)</code> ${tr('traza')}</div>
+          <div class="eng-help-row"><code>rank(A)</code> ${tr('rango')}</div>
+          <div class="eng-help-row"><code>norm(A)</code> ${tr('norma Frobenius')}</div>
+          <div class="eng-help-row"><code>eig(A)</code> ${tr('eigenvalores*')}</div>
           <div class="eng-help-row"><code>linsolve(A,b)</code> Ax=b</div>
-          <div class="eng-help-row"><code>dot(u,v)</code> producto escalar</div>
-          <div class="eng-help-row"><code>cross(u,v)</code> producto vectorial</div>
+          <div class="eng-help-row"><code>dot(u,v)</code> ${tr('producto escalar')}</div>
+          <div class="eng-help-row"><code>cross(u,v)</code> ${tr('producto vectorial')}</div>
           <div class="eng-help-row"><code>size(A) rows(A) cols(A)</code></div>
-          <div class="eng-help-note">* solo matrices simétricas</div>
+          <div class="eng-help-note">${tr('* solo matrices simétricas')}</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Solver</div>
-          <div class="eng-help-row"><code>solve(f)</code> raíz de f(x)=0</div>
-          <div class="eng-help-row"><code>solve(f, x0)</code> cerca de x0</div>
-          <div class="eng-help-row"><code>solve(f, g)</code> intersección</div>
+          <div class="eng-help-cat">${tr('Solver')}</div>
+          <div class="eng-help-row"><code>solve(f)</code> ${tr('raíz de f(x)=0')}</div>
+          <div class="eng-help-row"><code>solve(f, x0)</code> ${tr('cerca de x0')}</div>
+          <div class="eng-help-row"><code>solve(f, g)</code> ${tr('intersección')}</div>
           <div class="eng-help-row"><code>solve(f, g, x0)</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">CAS (botones)</div>
-          <div class="eng-help-row"><code>d/dx</code> derivar selección</div>
-          <div class="eng-help-row"><code>∫dx</code> integrar selección</div>
-          <div class="eng-help-row"><code>simplify</code> simplificar</div>
+          <div class="eng-help-cat">${tr('CAS (botones)')}</div>
+          <div class="eng-help-row"><code>d/dx</code> ${tr('derivar selección')}</div>
+          <div class="eng-help-row"><code>∫dx</code> ${tr('integrar selección')}</div>
+          <div class="eng-help-row"><code>simplify</code> ${tr('simplificar')}</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Distribuciones</div>
+          <div class="eng-help-cat">${tr('Distribuciones')}</div>
           <div class="eng-help-row"><code>normpdf(x, μ, σ)</code> PDF normal</div>
           <div class="eng-help-row"><code>normcdf(x, μ, σ)</code> CDF normal</div>
           <div class="eng-help-row"><code>norminv(p, μ, σ)</code> cuantil normal</div>
@@ -1931,37 +1933,37 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>binompmf(k, n, p)</code> PMF binomial</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Electrónica / RF</div>
-          <div class="eng-help-row"><code>db(x)</code> ratio → dB</div>
-          <div class="eng-help-row"><code>from_db(dB)</code> dB → ratio</div>
-          <div class="eng-help-row"><code>dbm(W)</code> vatios → dBm</div>
-          <div class="eng-help-row"><code>from_dbm(dBm)</code> dBm → W</div>
-          <div class="eng-help-row"><code>parallel(R1,R2,...)</code> R paralelas</div>
-          <div class="eng-help-row"><code>rms(a,b,...)</code> valor eficaz</div>
+          <div class="eng-help-cat">${tr('Electrónica / RF')}</div>
+          <div class="eng-help-row"><code>db(x)</code> ${tr('ratio → dB')}</div>
+          <div class="eng-help-row"><code>from_db(dB)</code> ${tr('dB → ratio')}</div>
+          <div class="eng-help-row"><code>dbm(W)</code> ${tr('vatios → dBm')}</div>
+          <div class="eng-help-row"><code>from_dbm(dBm)</code> ${tr('dBm → W')}</div>
+          <div class="eng-help-row"><code>parallel(R1,R2,...)</code> ${tr('R paralelas')}</div>
+          <div class="eng-help-row"><code>rms(a,b,...)</code> ${tr('valor eficaz')}</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Constantes físicas/quím.</div>
-          <div class="eng-help-row"><code>c</code> vel. luz (m/s)</div>
-          <div class="eng-help-row"><code>h</code> Planck (J·s)</div>
-          <div class="eng-help-row"><code>hbar</code> ℏ reducida</div>
-          <div class="eng-help-row"><code>k</code> Boltzmann (J/K)</div>
-          <div class="eng-help-row"><code>Na</code> Avogadro (mol⁻¹)</div>
-          <div class="eng-help-row"><code>R</code> gas ideal (J/mol·K)</div>
-          <div class="eng-help-row"><code>G</code> gravitacional</div>
-          <div class="eng-help-row"><code>g</code> gravedad estándar</div>
-          <div class="eng-help-row"><code>Fa</code> Faraday (C/mol)</div>
-          <div class="eng-help-row"><code>Vm</code> vol. molar STP (m³/mol)</div>
-          <div class="eng-help-row"><code>atm</code> 1 atm en Pa</div>
-          <div class="eng-help-row"><code>epsilon0 mu0</code> vacío</div>
-          <div class="eng-help-row"><code>me mp mn</code> masas part.</div>
-          <div class="eng-help-row"><code>e_charge</code> carga electrón</div>
-          <div class="eng-help-row"><code>sigma</code> Stefan-Boltzmann</div>
-          <div class="eng-help-row"><code>alpha</code> estructura fina</div>
-          <div class="eng-help-row"><code>a0</code> radio de Bohr</div>
+          <div class="eng-help-cat">${tr('Constantes físicas/quím.')}</div>
+          <div class="eng-help-row"><code>c</code> ${tr('vel. luz (m/s)')}</div>
+          <div class="eng-help-row"><code>h</code> ${tr('Planck (J·s)')}</div>
+          <div class="eng-help-row"><code>hbar</code> ${tr('ℏ reducida')}</div>
+          <div class="eng-help-row"><code>k</code> ${tr('Boltzmann (J/K)')}</div>
+          <div class="eng-help-row"><code>Na</code> ${tr('Avogadro (mol⁻¹)')}</div>
+          <div class="eng-help-row"><code>R</code> ${tr('gas ideal (J/mol·K)')}</div>
+          <div class="eng-help-row"><code>G</code> ${tr('gravitacional')}</div>
+          <div class="eng-help-row"><code>g</code> ${tr('gravedad estándar')}</div>
+          <div class="eng-help-row"><code>Fa</code> ${tr('Faraday (C/mol)')}</div>
+          <div class="eng-help-row"><code>Vm</code> ${tr('vol. molar STP (m³/mol)')}</div>
+          <div class="eng-help-row"><code>atm</code> ${tr('1 atm en Pa')}</div>
+          <div class="eng-help-row"><code>epsilon0 mu0</code> ${tr('vacío')}</div>
+          <div class="eng-help-row"><code>me mp mn</code> ${tr('masas part.')}</div>
+          <div class="eng-help-row"><code>e_charge</code> ${tr('carga electrón')}</div>
+          <div class="eng-help-row"><code>sigma</code> ${tr('Stefan-Boltzmann')}</div>
+          <div class="eng-help-row"><code>alpha</code> ${tr('estructura fina')}</div>
+          <div class="eng-help-row"><code>a0</code> ${tr('radio de Bohr')}</div>
           <div class="eng-help-row"><code>deg2rad rad2deg</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Funciones especiales</div>
+          <div class="eng-help-cat">${tr('Funciones especiales')}</div>
           <div class="eng-help-row"><code>gamma(x)</code> Γ(x)</div>
           <div class="eng-help-row"><code>lngamma(x)</code> ln Γ(x)</div>
           <div class="eng-help-row"><code>erf(x) erfc(x)</code></div>
@@ -1977,7 +1979,7 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>zeta(s)</code> Riemann ζ</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Bessel / Airy / Fresnel</div>
+          <div class="eng-help-cat">${tr('Bessel / Airy / Fresnel')}</div>
           <div class="eng-help-row"><code>besselj(n,x)</code> J_n</div>
           <div class="eng-help-row"><code>bessely(n,x)</code> Y_n</div>
           <div class="eng-help-row"><code>besseli(n,x)</code> I_n modif.</div>
@@ -1987,7 +1989,7 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>fresnel_c(x)</code> C(x)</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Polinomios ortogonales</div>
+          <div class="eng-help-cat">${tr('Polinomios ortogonales')}</div>
           <div class="eng-help-row"><code>legendre(n,x)</code> Pₙ(x)</div>
           <div class="eng-help-row"><code>hermite(n,x)</code> Hₙ(x)</div>
           <div class="eng-help-row"><code>chebyshev(n,x)</code> Tₙ(x)</div>
@@ -1996,7 +1998,7 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>maclaurin(f,n,x)</code> a=0</div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Distribuciones continuas</div>
+          <div class="eng-help-cat">${tr('Distribuciones continuas')}</div>
           <div class="eng-help-row"><code>normpdf/cdf/inv(x,μ,σ)</code></div>
           <div class="eng-help-row"><code>tpdf/tcdf/tinv(x,df)</code></div>
           <div class="eng-help-row"><code>chi2pdf/cdf/inv(x,df)</code></div>
@@ -2009,30 +2011,30 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>cauchypdf/cdf(x,x0,γ)</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Distribuciones discretas</div>
+          <div class="eng-help-cat">${tr('Distribuciones discretas')}</div>
           <div class="eng-help-row"><code>poissonpmf/cdf(k,λ)</code></div>
           <div class="eng-help-row"><code>binompmf/cdf(k,n,p)</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Estadística</div>
+          <div class="eng-help-cat">${tr('Estadística')}</div>
           <div class="eng-help-row"><code>mean/avg(…)</code></div>
           <div class="eng-help-row"><code>stdev variance(…)</code></div>
           <div class="eng-help-row"><code>median min max(…)</code></div>
           <div class="eng-help-row"><code>skewness kurtosis(…)</code></div>
           <div class="eng-help-row"><code>percentile(p, x1,…)</code></div>
           <div class="eng-help-row"><code>sum product rms(…)</code></div>
-          <div class="eng-help-row"><code>linreg(x1,y1,…)</code> pendiente</div>
+          <div class="eng-help-row"><code>linreg(x1,y1,…)</code> ${tr('pendiente')}</div>
           <div class="eng-help-row"><code>linreg_b linreg_r2 linreg_eq</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Bases / Bits</div>
-          <div class="eng-help-row"><code>0xFF 0b1010 0o77</code> literales</div>
+          <div class="eng-help-cat">${tr('Bases / Bits')}</div>
+          <div class="eng-help-row"><code>0xFF 0b1010 0o77</code> ${tr('literales')}</div>
           <div class="eng-help-row"><code>hex(n) bin(n) oct(n)</code></div>
           <div class="eng-help-row"><code>band bor bxor bnot</code></div>
           <div class="eng-help-row"><code>shl(a,n) shr(a,n)</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Combinatoria / Álgebra</div>
+          <div class="eng-help-cat">${tr('Combinatoria / Álgebra')}</div>
           <div class="eng-help-row"><code>nCr(n,k) nPr(n,k)</code></div>
           <div class="eng-help-row"><code>gcd lcm</code></div>
           <div class="eng-help-row"><code>isprime fibonacci catalan</code></div>
@@ -2040,8 +2042,8 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>sign rand() parallel rms</code></div>
         </div>
         <div class="eng-help-section">
-          <div class="eng-help-cat">Álgebra lineal</div>
-          <div class="eng-help-row"><code>[1,2;3,4]</code> matriz</div>
+          <div class="eng-help-cat">${tr('Álgebra lineal')}</div>
+          <div class="eng-help-row"><code>[1,2;3,4]</code> ${tr('matriz')}</div>
           <div class="eng-help-row"><code>det inv transpose</code></div>
           <div class="eng-help-row"><code>eig rank trace norm</code></div>
           <div class="eng-help-row"><code>dot cross msolve</code></div>
@@ -2049,15 +2051,15 @@ function buildEngineeringLayout(): HTMLElement {
         </div>
       </div>
       <div class="eng-sidebar-ops">
-        <span class="eng-ops-label">Operaciones</span>
+        <span class="eng-ops-label">${tr('Operaciones')}</span>
         <div class="eng-ops-grid">
-          <button class="eng-op-btn" data-op="diff" title="Derivar respecto a x">d/dx</button>
-          <button class="eng-op-btn" data-op="integrate" title="Integrar respecto a x">∫dx</button>
-          <button class="eng-op-btn" data-op="simplify" title="Simplificar expresión">simplify</button>
-          <button class="eng-op-btn" data-op="factor" title="Factorizar">factor</button>
+          <button class="eng-op-btn" data-op="diff" title="${tr('Derivar respecto a x')}">d/dx</button>
+          <button class="eng-op-btn" data-op="integrate" title="${tr('Integrar respecto a x')}">∫dx</button>
+          <button class="eng-op-btn" data-op="simplify" title="${tr('Simplificar expresión')}">simplify</button>
+          <button class="eng-op-btn" data-op="factor" title="${tr('Factorizar')}">factor</button>
         </div>
         <div class="eng-angle-row">
-          <span class="eng-ops-label">Ángulos</span>
+          <span class="eng-ops-label">${tr('Ángulos')}</span>
           <div class="eng-ops-grid">
             <button class="eng-op-btn eng-angle-btn ${state.angleMode === "DEG" ? "active" : ""}" data-angle="DEG">DEG</button>
             <button class="eng-op-btn eng-angle-btn ${state.angleMode === "RAD" ? "active" : ""}" data-angle="RAD">RAD</button>
@@ -2069,11 +2071,11 @@ function buildEngineeringLayout(): HTMLElement {
       <div class="eng-output" id="eng-output"></div>
       <div class="eng-input-wrap">
         <textarea class="eng-input" id="eng-input" rows="3"
-          placeholder="Escribe expresiones o asignaciones:&#10;a = 5&#10;b = sqrt(3)&#10;a^2 + b&#10;sin(pi/4)"
+          placeholder="${tr('Escribe expresiones o asignaciones:')}&#10;a = 5&#10;b = sqrt(3)&#10;a^2 + b&#10;sin(pi/4)"
           spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
         <div class="eng-input-actions">
-          <button class="eng-run-btn" id="eng-run">▶ Ejecutar</button>
-          <button class="eng-btn-small" id="eng-clear-output" title="Limpiar salida">Limpiar</button>
+          <button class="eng-run-btn" id="eng-run">${tr('▶ Ejecutar')}</button>
+          <button class="eng-btn-small" id="eng-clear-output" title="${tr('Limpiar salida')}">${tr('Limpiar')}</button>
         </div>
       </div>
     </div>
@@ -2091,7 +2093,7 @@ function buildEngineeringLayout(): HTMLElement {
     helpBtn.addEventListener("click", () => {
       const showing = helpPanel.classList.toggle("visible");
       varsList.style.display = showing ? "none" : "";
-      sidebarTitle.textContent = showing ? "Referencia" : "Variables";
+      sidebarTitle.textContent = showing ? tr("Referencia") : tr("Variables");
       helpBtn.classList.toggle("active", showing);
     });
 
@@ -2100,7 +2102,7 @@ function buildEngineeringLayout(): HTMLElement {
         const vars = await casVars();
         const entries = Object.entries(vars).filter(([k]) => k !== "ans");
         if (entries.length === 0) {
-          varsList.innerHTML = `<span class="eng-empty-hint">Sin variables definidas</span>`;
+          varsList.innerHTML = `<span class="eng-empty-hint">${tr('Sin variables definidas')}</span>`;
         } else {
           varsList.innerHTML = entries.map(([name, val]) =>
             `<div class="eng-var-entry">
@@ -2156,13 +2158,13 @@ function buildEngineeringLayout(): HTMLElement {
               textarea.focus();
             }
           });
-          row.title = "Click → pegar en entrada   Ctrl+Click → copiar";
+          row.title = tr("Click → pegar en entrada   Ctrl+Click → copiar");
           block.appendChild(row);
         }
       } catch (err: any) {
         const errDiv = document.createElement("div");
         errDiv.className = "eng-block-error";
-        errDiv.textContent = "Error: " + (err?.message ?? String(err));
+        errDiv.textContent = tr("Error:") + " " + (err?.message ?? String(err));
         block.appendChild(errDiv);
       }
 
@@ -2254,7 +2256,7 @@ function buildEngineeringLayout(): HTMLElement {
           } catch (err: any) {
             const block = document.createElement("div");
             block.className = "eng-block";
-            block.innerHTML = `<div class="eng-block-error">Error: ${escapeHtml(String(err?.message ?? err))}</div>`;
+            block.innerHTML = `<div class="eng-block-error">${tr("Error:")} ${escapeHtml(String(err?.message ?? err))}</div>`;
             output.appendChild(block);
             output.scrollTop = output.scrollHeight;
           }
@@ -2318,14 +2320,14 @@ function buildGraphLayout(): HTMLElement {
     <div class="graph-canvas-wrap" id="graph-canvas-wrap">
       <canvas class="graph-canvas" id="graph-canvas"></canvas>
       <div class="graph-coords" id="graph-coords"></div>
-      <div class="graph-hint">Arrastra · Rueda para zoom</div>
+      <div class="graph-hint">${tr('Arrastra · Rueda para zoom')}</div>
     </div>
     <div class="graph-side-col">
       <div class="graph-fns" id="graph-fns"></div>
-      <button class="graph-add-btn" id="graph-add">+ Añadir</button>
+      <button class="graph-add-btn" id="graph-add">${tr('+ Añadir')}</button>
       <div class="graph-controls" style="margin-top:auto">
-        <button class="graph-ctrl-btn" id="graph-reset">Centrar</button>
-        <button class="graph-ctrl-btn" id="graph-export" title="Exportar PNG">↓ PNG</button>
+        <button class="graph-ctrl-btn" id="graph-reset">${tr('Centrar')}</button>
+        <button class="graph-ctrl-btn" id="graph-export" title="↓ PNG">${tr('↓ PNG')}</button>
       </div>
     </div>
   `;
@@ -2366,10 +2368,10 @@ function buildChemistryLayout(): HTMLElement {
 
       <!-- ── Molar Mass ── -->
       <div class="chem-card">
-        <div class="chem-card-title">⚗ Masa Molar</div>
+        <div class="chem-card-title">${tr('⚗ Masa Molar')}</div>
         <div class="chem-row">
           <input class="chem-input" id="chem-mm-formula" placeholder="H2O, C6H12O6, (NH4)2SO4…" autocomplete="off" spellcheck="false" />
-          <button class="chem-btn" id="chem-mm-calc">Calcular</button>
+          <button class="chem-btn" id="chem-mm-calc">${tr('Calcular')}</button>
         </div>
         <div class="chem-result chem-mm-result" id="chem-mm-result"></div>
         <div class="chem-breakdown" id="chem-mm-breakdown"></div>
@@ -2377,10 +2379,10 @@ function buildChemistryLayout(): HTMLElement {
 
       <!-- ── Gas Law ── -->
       <div class="chem-card">
-        <div class="chem-card-title">🔵 Ley del Gas Ideal · PV = nRT</div>
+        <div class="chem-card-title">${tr('🔵 Ley del Gas Ideal · PV = nRT')}</div>
         <div class="chem-gas-grid">
           <div class="chem-gas-field">
-            <label class="chem-label">P (Presión)</label>
+            <label class="chem-label">${tr('P (Presión)')}</label>
             <div class="chem-gas-row">
               <input class="chem-input chem-gas-input" id="gas-P" placeholder="—" type="number" min="0" />
               <select class="chem-select" id="gas-P-unit">
@@ -2391,7 +2393,7 @@ function buildChemistryLayout(): HTMLElement {
             </div>
           </div>
           <div class="chem-gas-field">
-            <label class="chem-label">V (Volumen)</label>
+            <label class="chem-label">${tr('V (Volumen)')}</label>
             <div class="chem-gas-row">
               <input class="chem-input chem-gas-input" id="gas-V" placeholder="—" type="number" min="0" />
               <select class="chem-select" id="gas-V-unit">
@@ -2401,14 +2403,14 @@ function buildChemistryLayout(): HTMLElement {
             </div>
           </div>
           <div class="chem-gas-field">
-            <label class="chem-label">n (Moles)</label>
+            <label class="chem-label">${tr('n (Moles)')}</label>
             <div class="chem-gas-row">
               <input class="chem-input chem-gas-input" id="gas-n" placeholder="—" type="number" min="0" />
               <span class="chem-unit-label">mol</span>
             </div>
           </div>
           <div class="chem-gas-field">
-            <label class="chem-label">T (Temperatura)</label>
+            <label class="chem-label">${tr('T (Temperatura)')}</label>
             <div class="chem-gas-row">
               <input class="chem-input chem-gas-input" id="gas-T" placeholder="—" type="number" />
               <select class="chem-select" id="gas-T-unit">
@@ -2417,44 +2419,44 @@ function buildChemistryLayout(): HTMLElement {
             </div>
           </div>
         </div>
-        <div class="chem-gas-hint">Deja un campo en blanco para calcularlo</div>
-        <button class="chem-btn chem-btn-wide" id="gas-calc">Resolver</button>
+        <div class="chem-gas-hint">${tr('Deja un campo en blanco para calcularlo')}</div>
+        <button class="chem-btn chem-btn-wide" id="gas-calc">${tr('Resolver')}</button>
         <div class="chem-result" id="gas-result"></div>
       </div>
 
       <!-- ── Element Lookup ── -->
       <div class="chem-card">
-        <div class="chem-card-title">🔬 Elemento Químico</div>
+        <div class="chem-card-title">${tr('🔬 Elemento Químico')}</div>
         <div class="chem-row">
-          <input class="chem-input" id="chem-elem-search" placeholder="Símbolo (Fe), nombre (Hierro) o número (26)…" autocomplete="off" />
-          <button class="chem-btn" id="chem-elem-btn">Buscar</button>
+          <input class="chem-input" id="chem-elem-search" placeholder="${tr('Símbolo (Fe), nombre (Hierro) o número (26)…')}" autocomplete="off" />
+          <button class="chem-btn" id="chem-elem-btn">${tr('Buscar')}</button>
         </div>
         <div id="chem-elem-result"></div>
       </div>
 
       <!-- ── pH Calculator ── -->
       <div class="chem-card">
-        <div class="chem-card-title">🧪 Calculadora de pH</div>
+        <div class="chem-card-title">${tr('🧪 Calculadora de pH')}</div>
         <div class="chem-ph-tabs">
-          <button class="chem-ph-tab active" data-tab="strong">Ácido/base fuerte</button>
-          <button class="chem-ph-tab" data-tab="weak">Ácido/base débil</button>
-          <button class="chem-ph-tab" data-tab="buffer">Buffer (H-H)</button>
-          <button class="chem-ph-tab" data-tab="conv">Conversión</button>
+          <button class="chem-ph-tab active" data-tab="strong">${tr('Ácido/base fuerte')}</button>
+          <button class="chem-ph-tab" data-tab="weak">${tr('Ácido/base débil')}</button>
+          <button class="chem-ph-tab" data-tab="buffer">${tr('Buffer (H-H)')}</button>
+          <button class="chem-ph-tab" data-tab="conv">${tr('Conversión')}</button>
         </div>
 
         <div class="chem-ph-panel" id="ph-panel-strong">
           <div class="chem-row">
             <label class="chem-label" style="min-width:140px">Tipo:</label>
             <select class="chem-select" id="ph-strong-type" style="flex:1">
-              <option value="acid">Ácido fuerte</option>
-              <option value="base">Base fuerte</option>
+              <option value="acid">${tr('Ácido fuerte')}</option>
+              <option value="base">${tr('Base fuerte')}</option>
             </select>
           </div>
           <div class="chem-row">
-            <label class="chem-label" style="min-width:140px">Concentración (mol/L):</label>
+            <label class="chem-label" style="min-width:140px">${tr('Concentración (mol/L):')}</label>
             <input class="chem-input" id="ph-strong-conc" type="number" placeholder="0.1" min="0" style="flex:1" />
           </div>
-          <button class="chem-btn chem-btn-wide" id="ph-strong-calc">Calcular pH</button>
+          <button class="chem-btn chem-btn-wide" id="ph-strong-calc">${tr('Calcular pH')}</button>
           <div class="chem-result" id="ph-strong-result"></div>
         </div>
 
@@ -2462,49 +2464,49 @@ function buildChemistryLayout(): HTMLElement {
           <div class="chem-row">
             <label class="chem-label" style="min-width:140px">Tipo:</label>
             <select class="chem-select" id="ph-weak-type" style="flex:1">
-              <option value="acid">Ácido débil</option>
-              <option value="base">Base débil</option>
+              <option value="acid">${tr('Ácido débil')}</option>
+              <option value="base">${tr('Base débil')}</option>
             </select>
           </div>
           <div class="chem-row">
-            <label class="chem-label" style="min-width:140px">Ka o Kb:</label>
+            <label class="chem-label" style="min-width:140px">${tr('Ka o Kb:')}</label>
             <input class="chem-input" id="ph-weak-k" type="number" placeholder="1.8e-5" min="0" style="flex:1" />
           </div>
           <div class="chem-row">
-            <label class="chem-label" style="min-width:140px">Concentración (mol/L):</label>
+            <label class="chem-label" style="min-width:140px">${tr('Concentración (mol/L):')}</label>
             <input class="chem-input" id="ph-weak-conc" type="number" placeholder="0.1" min="0" style="flex:1" />
           </div>
-          <button class="chem-btn chem-btn-wide" id="ph-weak-calc">Calcular pH</button>
+          <button class="chem-btn chem-btn-wide" id="ph-weak-calc">${tr('Calcular pH')}</button>
           <div class="chem-result" id="ph-weak-result"></div>
         </div>
 
         <div class="chem-ph-panel" id="ph-panel-buffer" style="display:none">
           <div class="chem-row">
-            <label class="chem-label" style="min-width:140px">pKa:</label>
+            <label class="chem-label" style="min-width:140px">${tr('pKa:')}</label>
             <input class="chem-input" id="ph-buf-pka" type="number" placeholder="4.74" style="flex:1" />
           </div>
           <div class="chem-row">
-            <label class="chem-label" style="min-width:140px">[A⁻] base conjugada:</label>
+            <label class="chem-label" style="min-width:140px">${tr('[A⁻] base conjugada:')}</label>
             <input class="chem-input" id="ph-buf-base" type="number" placeholder="0.1" min="0" style="flex:1" />
           </div>
           <div class="chem-row">
-            <label class="chem-label" style="min-width:140px">[HA] ácido:</label>
+            <label class="chem-label" style="min-width:140px">${tr('[HA] ácido:')}</label>
             <input class="chem-input" id="ph-buf-acid" type="number" placeholder="0.1" min="0" style="flex:1" />
           </div>
-          <button class="chem-btn chem-btn-wide" id="ph-buf-calc">Calcular pH buffer</button>
+          <button class="chem-btn chem-btn-wide" id="ph-buf-calc">${tr('Calcular pH buffer')}</button>
           <div class="chem-result" id="ph-buf-result"></div>
         </div>
 
         <div class="chem-ph-panel" id="ph-panel-conv" style="display:none">
           <div class="chem-row">
-            <label class="chem-label" style="min-width:80px">pH:</label>
+            <label class="chem-label" style="min-width:80px">${tr('pH:')}</label>
             <input class="chem-input" id="ph-conv-ph" type="number" placeholder="7" style="flex:1" />
-            <button class="chem-btn" id="ph-from-ph">→ [H⁺]</button>
+            <button class="chem-btn" id="ph-from-ph">${tr('→ [H⁺]')}</button>
           </div>
           <div class="chem-row">
-            <label class="chem-label" style="min-width:80px">[H⁺] mol/L:</label>
+            <label class="chem-label" style="min-width:80px">${tr('[H⁺] mol/L:')}</label>
             <input class="chem-input" id="ph-conv-conc" type="number" placeholder="1e-7" min="0" style="flex:1" />
-            <button class="chem-btn" id="ph-from-conc">→ pH</button>
+            <button class="chem-btn" id="ph-from-conc">${tr('→ pH')}</button>
           </div>
           <div class="chem-result" id="ph-conv-result"></div>
         </div>
@@ -2528,10 +2530,10 @@ function buildChemistryLayout(): HTMLElement {
         mmBreakdown.innerHTML = "";
         return;
       }
-      mmResult.innerHTML = `<span class="chem-big">${fmtChem(res.mass, 6)}</span> <span class="chem-unit">g/mol</span>`;
+      mmResult.innerHTML = `<span class="chem-big">${fmtChem(res.mass, 6)}</span> <span class="chem-unit">${tr('g/mol')}</span>`;
       mmBreakdown.innerHTML = `
         <table class="chem-table">
-          <thead><tr><th>Elemento</th><th>N</th><th>Masa atómica</th><th>Contribución</th><th>%</th></tr></thead>
+          <thead><tr><th>${tr('Elemento')}</th><th>${tr('N')}</th><th>${tr('Masa atómica')}</th><th>${tr('Contribución')}</th><th>${tr('%')}</th></tr></thead>
           <tbody>
             ${res.breakdown.map(b => `
               <tr>
@@ -2613,10 +2615,10 @@ function buildChemistryLayout(): HTMLElement {
       if (!q) { elemResult.innerHTML = ""; return; }
       const elem = findElement(q);
       if (!elem) {
-        elemResult.innerHTML = `<div class="chem-err">Elemento no encontrado: "${escapeHtml(q)}"</div>`;
+        elemResult.innerHTML = `<div class="chem-err">${tr('Elemento no encontrado:')} "${escapeHtml(q)}"</div>`;
         return;
       }
-      const catLabel = CAT_LABELS[elem.cat] ?? elem.cat;
+      const catLabel = tr(CAT_LABELS[elem.cat]) ?? elem.cat;
       const catClass = `cat-${elem.cat}`;
       elemResult.innerHTML = `
         <div class="chem-elem-card">
@@ -2625,11 +2627,11 @@ function buildChemistryLayout(): HTMLElement {
             <div class="chem-elem-sym">${escapeHtml(elem.sym)}</div>
           </div>
           <div class="chem-elem-info">
-            <div class="chem-elem-name">${escapeHtml(elem.name)}</div>
-            <div class="chem-elem-detail">Masa atómica: <strong>${fmtChem(elem.mass, 6)} u</strong> (g/mol)</div>
-            <div class="chem-elem-detail">Período: ${elem.period}${elem.group > 0 ? `  · Grupo: ${elem.group}` : ""}</div>
-            <div class="chem-elem-detail">Categoría: ${catLabel}</div>
-            <div class="chem-elem-detail chem-dim">1 mol = ${fmtChem(elem.mass, 6)} g</div>
+            <div class="chem-elem-name">${escapeHtml(tr(elem.name))}</div>
+            <div class="chem-elem-detail">${tr('Masa atómica:')} <strong>${fmtChem(elem.mass, 6)} u</strong> (g/mol)</div>
+            <div class="chem-elem-detail">${tr('Período:')} ${elem.period}${elem.group > 0 ? `  · ${tr('Grupo:')} ${elem.group}` : ""}</div>
+            <div class="chem-elem-detail">${tr('Categoría:')} ${catLabel}</div>
+            <div class="chem-elem-detail chem-dim">${tr('1 mol =')} ${fmtChem(elem.mass, 6)} g</div>
           </div>
         </div>`;
     }
@@ -2660,7 +2662,7 @@ function buildChemistryLayout(): HTMLElement {
       const c = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-strong-conc")!).value);
       const type = (wrap.querySelector<HTMLSelectElement>("#ph-strong-type")!).value;
       const res = wrap.querySelector<HTMLElement>("#ph-strong-result")!;
-      if (isNaN(c) || c <= 0) { res.innerHTML = `<span class="chem-err">Concentración inválida</span>`; return; }
+      if (isNaN(c) || c <= 0) { res.innerHTML = `<span class="chem-err">${tr('Concentración inválida')}</span>`; return; }
       const ph = type === "acid" ? strongAcidPH(c) : strongBasePH(c);
       const poh = 14 - ph;
       res.innerHTML = renderPhResult(ph, poh);
@@ -2672,11 +2674,11 @@ function buildChemistryLayout(): HTMLElement {
       const c = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-weak-conc")!).value);
       const type = (wrap.querySelector<HTMLSelectElement>("#ph-weak-type")!).value;
       const res = wrap.querySelector<HTMLElement>("#ph-weak-result")!;
-      if (isNaN(k) || k <= 0 || isNaN(c) || c <= 0) { res.innerHTML = `<span class="chem-err">Valores inválidos</span>`; return; }
+      if (isNaN(k) || k <= 0 || isNaN(c) || c <= 0) { res.innerHTML = `<span class="chem-err">${tr('Valores inválidos')}</span>`; return; }
       const ph = type === "acid" ? weakAcidPH(k, c) : weakBasePH(k, c);
       const poh = 14 - ph;
       res.innerHTML = isNaN(ph)
-        ? `<span class="chem-err">Error en cálculo (verifica Ka/Kb y concentración)</span>`
+        ? `<span class="chem-err">${tr('Error en cálculo (verifica Ka/Kb y concentración)')}</span>`
         : renderPhResult(ph, poh);
     });
 
@@ -2687,19 +2689,19 @@ function buildChemistryLayout(): HTMLElement {
       const acid = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-buf-acid")!).value);
       const res = wrap.querySelector<HTMLElement>("#ph-buf-result")!;
       if (isNaN(pka) || isNaN(base) || isNaN(acid) || acid <= 0 || base <= 0) {
-        res.innerHTML = `<span class="chem-err">Valores inválidos</span>`; return;
+        res.innerHTML = `<span class="chem-err">${tr('Valores inválidos')}</span>`; return;
       }
       const ph = bufferPH(pka, base, acid);
       res.innerHTML = `
         ${renderPhResult(ph, 14 - ph)}
-        <div class="chem-dim" style="margin-top:4px">Henderson-Hasselbalch: pH = pKa + log([A⁻]/[HA])</div>`;
+        <div class="chem-dim" style="margin-top:4px">${tr('Henderson-Hasselbalch: pH = pKa + log([A⁻]/[HA])')}</div>`;
     });
 
     // Conversion tab
     wrap.querySelector("#ph-from-ph")!.addEventListener("click", () => {
       const ph = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-conv-ph")!).value);
       const res = wrap.querySelector<HTMLElement>("#ph-conv-result")!;
-      if (isNaN(ph)) { res.innerHTML = `<span class="chem-err">pH inválido</span>`; return; }
+      if (isNaN(ph)) { res.innerHTML = `<span class="chem-err">${tr('pH inválido')}</span>`; return; }
       const conc = concFromPH(ph);
       res.innerHTML = `[H⁺] = <strong>${fmtChem(conc)}</strong> mol/L   (pOH = ${fmtChem(14 - ph)})`;
       (wrap.querySelector<HTMLInputElement>("#ph-conv-conc")!).value = fmtChem(conc);
@@ -2708,7 +2710,7 @@ function buildChemistryLayout(): HTMLElement {
     wrap.querySelector("#ph-from-conc")!.addEventListener("click", () => {
       const conc = parseFloat((wrap.querySelector<HTMLInputElement>("#ph-conv-conc")!).value);
       const res = wrap.querySelector<HTMLElement>("#ph-conv-result")!;
-      if (isNaN(conc) || conc <= 0) { res.innerHTML = `<span class="chem-err">Concentración inválida</span>`; return; }
+      if (isNaN(conc) || conc <= 0) { res.innerHTML = `<span class="chem-err">${tr('Concentración inválida')}</span>`; return; }
       const ph = pHFromConc(conc);
       res.innerHTML = `pH = <strong>${fmtChem(ph, 4)}</strong>   (pOH = ${fmtChem(14 - ph)})`;
       (wrap.querySelector<HTMLInputElement>("#ph-conv-ph")!).value = fmtChem(ph);
@@ -2720,7 +2722,7 @@ function buildChemistryLayout(): HTMLElement {
 
 function renderPhResult(ph: number, poh: number): string {
   const phColor = ph < 7 ? "#e05050" : ph > 7 ? "#3484e2" : "#18b050";
-  const label = ph < 7 ? "Ácido" : ph > 7 ? "Básico" : "Neutro";
+  const label = ph < 7 ? tr("Ácido") : ph > 7 ? tr("Básico") : tr("Neutro");
   const hConc = concFromPH(ph);
   const ohConc = concFromPH(poh);
   return `
@@ -2741,13 +2743,13 @@ function renderGraphFns(): void {
 
   container.innerHTML = graphFunctions.map((fn, i) => `
     <div class="graph-fn-row" data-idx="${i}">
-      <button class="graph-color-dot" style="background:${fn.color}" title="Cambiar color" data-idx="${i}"></button>
+      <button class="graph-color-dot" style="background:${fn.color}" title="${tr('Cambiar color')}" data-idx="${i}"></button>
       <input class="graph-fn-input" id="graph-fn-${i}"
         placeholder="${i === 0 ? "sin(x)" : i === 1 ? "x^2/10" : "cos(x/2)"}"
         value="${fn.expr}"
         autocomplete="off" spellcheck="false" />
-      <button class="graph-polar-btn ${fn.polar ? 'active' : ''}" data-idx="${i}" title="${fn.polar ? 'Modo polar (r=f(θ)) — click para cartesiano' : 'Modo cartesiano (y=f(x)) — click para polar'}">θ</button>
-      ${graphFunctions.length > 1 ? `<button class="graph-fn-remove" data-idx="${i}" title="Eliminar">×</button>` : ""}
+      <button class="graph-polar-btn ${fn.polar ? 'active' : ''}" data-idx="${i}" title="${fn.polar ? tr('Modo polar (r=f(θ)) — click para cartesiano') : tr('Modo cartesiano (y=f(x)) — click para polar')}">θ</button>
+      ${graphFunctions.length > 1 ? `<button class="graph-fn-remove" data-idx="${i}" title="${tr('Eliminar')}">×</button>` : ""}
     </div>
   `).join("");
 
@@ -2780,8 +2782,8 @@ function renderGraphFns(): void {
       graphFunctions[i].polar = !graphFunctions[i].polar;
       btn.classList.toggle("active", graphFunctions[i].polar ?? false);
       btn.title = graphFunctions[i].polar
-        ? "Modo polar (r=f(θ)) — click para cartesiano"
-        : "Modo cartesiano (y=f(x)) — click para polar";
+        ? tr("Modo polar (r=f(θ)) — click para cartesiano")
+        : tr("Modo cartesiano (y=f(x)) — click para polar");
       grapherInstance?.setFunctions(graphFunctions);
     });
   });

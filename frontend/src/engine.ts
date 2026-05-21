@@ -17,6 +17,7 @@ import {
   round as mathRound,
   sqrt as mathSqrt,
 } from "mathjs";
+import { tr, getLocale } from "./i18n.ts";
 
 export type AngleMode = "DEG" | "RAD";
 
@@ -128,7 +129,7 @@ export function evalExpression(
   const cleaned = preprocess(expr);
   const raw = evaluate(cleaned, scope);
 
-  if (raw === null || raw === undefined) throw new Error("Sin resultado");
+  if (raw === null || raw === undefined) throw new Error(tr("Sin resultado"));
 
   if (isComplexLike(raw)) {
     const normalized = normalizeComplex(raw);
@@ -139,7 +140,7 @@ export function evalExpression(
   }
 
   const num = Number(raw);
-  if (isNaN(num)) throw new Error("Resultado inválido");
+  if (isNaN(num)) throw new Error(tr("Resultado inválido"));
   if (!isFinite(num)) throw new Error(num > 0 ? "∞" : "-∞");
 
   return { value: num, formatted: formatResult(num) };
@@ -307,11 +308,11 @@ function replaceBaseLiterals(expr: string): string {
   return expr.replace(BASE_LITERAL_PATTERN, (_, digits: string, baseSubscript: string) => {
     const base = Number(decodeSubscript(baseSubscript));
     if (!Number.isInteger(base) || base < 2 || base > 36) {
-      throw new Error(`Base inválida: ${base}`);
+      throw new Error(`${tr("Base inválida:")} ${base}`);
     }
     const parsed = parseInt(digits, base);
     if (Number.isNaN(parsed)) {
-      throw new Error(`Número inválido para base ${base}`);
+      throw new Error(`${tr("Número inválido para base")} ${base}`);
     }
     return String(parsed);
   });
@@ -365,7 +366,7 @@ function formatRealNumber(n: number): string {
   const str = rounded.toString();
 
   if (Number.isInteger(rounded) && abs < 1e15) {
-    return rounded.toLocaleString("es-ES");
+    return rounded.toLocaleString(getLocale() === "en" ? "en-US" : "es-ES");
   }
 
   return str;
@@ -373,10 +374,10 @@ function formatRealNumber(n: number): string {
 
 export function factorizeInteger(n: number): string {
   if (!Number.isFinite(n) || !Number.isInteger(n)) {
-    throw new Error("Solo se pueden factorizar enteros");
+    throw new Error(tr("Solo se pueden factorizar enteros"));
   }
   if (!Number.isSafeInteger(n)) {
-    throw new Error("Número demasiado grande para factorizar con precisión");
+    throw new Error(tr("Número demasiado grande para factorizar con precisión"));
   }
   if (Math.abs(n) < 2) {
     return String(n);
@@ -424,8 +425,8 @@ function isComplexLike(value: unknown): value is ComplexLike {
 }
 
 function factorial(n: number): number {
-  if (!Number.isInteger(n) || n < 0) throw new Error("Factorial: entero no-negativo requerido");
-  if (n > 170) throw new Error("Factorial demasiado grande");
+  if (!Number.isInteger(n) || n < 0) throw new Error(tr("Factorial: entero no-negativo requerido"));
+  if (n > 170) throw new Error(tr("Factorial demasiado grande"));
   if (n <= 1) return 1;
   let r = 1;
   for (let i = 2; i <= n; i++) r *= i;

@@ -267,7 +267,7 @@ export function createGrapher(
   function setView(v: GraphView) { view = { ...v }; redraw(); }
 
   /** Export current canvas as PNG download */
-  function exportPng(filename = "grafica.png") {
+  function exportPng(filename = "graph.png") {
     const link = document.createElement("a");
     link.download = filename;
     link.href = canvas.toDataURL("image/png");

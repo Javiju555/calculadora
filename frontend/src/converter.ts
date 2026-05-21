@@ -1,3 +1,5 @@
+import { tr, getLocale } from "./i18n.ts";
+
 export interface ConvUnit {
   id: string;
   name: string;
@@ -251,11 +253,11 @@ export const CATEGORIES: ConvCategory[] = [
 
 export function convert(value: number, fromId: string, toId: string, categoryId: string): number {
   const cat = CATEGORIES.find(c => c.id === categoryId);
-  if (!cat) throw new Error("Categoría desconocida");
+  if (!cat) throw new Error(tr("Categoría desconocida"));
 
   const from = cat.units.find(u => u.id === fromId);
   const to = cat.units.find(u => u.id === toId);
-  if (!from || !to) throw new Error("Unidad desconocida");
+  if (!from || !to) throw new Error(tr("Unidad desconocida"));
 
   const base = from.toBase(value);
   return to.fromBase(base);
@@ -267,6 +269,6 @@ export function formatConvResult(n: number): string {
   if (abs !== 0 && (abs >= 1e12 || abs < 1e-9)) {
     return n.toExponential(6).replace(/\.?0+(e)/, "$1").replace("e+", "e");
   }
-  if (Number.isInteger(n) && abs < 1e12) return n.toLocaleString("es-ES");
+  if (Number.isInteger(n) && abs < 1e12) return n.toLocaleString(getLocale() === "en" ? "en-US" : "es-ES");
   return parseFloat(n.toPrecision(10)).toString();
 }

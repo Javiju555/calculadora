@@ -1,9 +1,11 @@
+import { tr } from "./i18n.ts";
+
 // chemistry.ts — Periodic table, molar mass, gas laws, pH calculations
 
 export interface Element {
   z: number;
   sym: string;
-  name: string;    // Spanish name
+  name: string;    // Localized name (tr() when displaying)
   mass: number;    // Standard atomic weight (u)
   period: number;
   group: number;   // 0 = lanthanide/actinide
@@ -240,7 +242,7 @@ export function parseMolarMass(formula: string): MolarMassResult {
     }
 
     if (unknownSyms.length > 0) {
-      return { mass: 0, breakdown: [], error: `Elemento desconocido: ${unknownSyms.join(', ')}` };
+      return { mass: 0, breakdown: [], error: `${tr("Elemento desconocido:")} ${unknownSyms.join(', ')}` };
     }
 
     // Sort by atomic number
@@ -252,7 +254,7 @@ export function parseMolarMass(formula: string): MolarMassResult {
 
     return { mass: totalMass, breakdown };
   } catch (e) {
-    return { mass: 0, breakdown: [], error: `Fórmula inválida: ${String(e)}` };
+    return { mass: 0, breakdown: [], error: `${tr("Fórmula inválida:")} ${String(e)}` };
   }
 }
 
@@ -279,29 +281,29 @@ export function solveGasLaw(state: GasState): GasResult {
   const nullCount = [P, V, n, T].filter(x => x === null).length;
 
   if (nullCount !== 1) {
-    return { ...state, error: "Proporciona exactamente 3 variables (deja 1 en blanco)" };
+    return { ...state, error: tr("Proporciona exactamente 3 variables (deja 1 en blanco)") };
   }
 
   const result: GasResult = { ...state };
 
   if (P === null) {
     const val = (n! * R_GAS * T!) / V!;
-    if (!isFinite(val) || val <= 0) return { ...state, error: "Resultado no válido (verifica unidades)" };
+    if (!isFinite(val) || val <= 0) return { ...state, error: tr("Resultado no válido (verifica unidades)") };
     result.P = val;
     result.solvedVar = "P";
   } else if (V === null) {
     const val = (n! * R_GAS * T!) / P!;
-    if (!isFinite(val) || val <= 0) return { ...state, error: "Resultado no válido (verifica unidades)" };
+    if (!isFinite(val) || val <= 0) return { ...state, error: tr("Resultado no válido (verifica unidades)") };
     result.V = val;
     result.solvedVar = "V";
   } else if (n === null) {
     const val = (P! * V!) / (R_GAS * T!);
-    if (!isFinite(val) || val <= 0) return { ...state, error: "Resultado no válido (verifica unidades)" };
+    if (!isFinite(val) || val <= 0) return { ...state, error: tr("Resultado no válido (verifica unidades)") };
     result.n = val;
     result.solvedVar = "n";
   } else {
     const val = (P! * V!) / (n! * R_GAS);
-    if (!isFinite(val) || val <= 0) return { ...state, error: "Resultado no válido (verifica unidades)" };
+    if (!isFinite(val) || val <= 0) return { ...state, error: tr("Resultado no válido (verifica unidades)") };
     result.T = val;
     result.solvedVar = "T";
   }
