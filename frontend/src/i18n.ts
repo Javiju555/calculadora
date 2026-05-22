@@ -539,6 +539,9 @@ const en: Record<string, string> = {
   // ── Formula hint (converter) ──
   "g/mol": "g/mol",
   "Símbolo (Fe), nombre (Hierro) o número (26)…": "Symbol (Fe), name (Iron) or number (26)…",
+  "factorial": "factorial",
+  "Estadística": "Statistics",
+  "Escribe expresiones o asignaciones:": "Write expressions or assignments:",
   "pendiente": "slope",
   "literales": "literals",
   "matriz": "matrix",
