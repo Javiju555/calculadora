@@ -579,6 +579,53 @@ impl<'a> Evaluator<'a> {
                     _ => return Err(format!("{name}() requiere dos matrices")),
                 }
             }
+            "ode" => {
+                // ode(f, t0, y0, t_end [, n=200])
+                // f: dy/dt expression using 't' (time) and 'y' (state)
+                if argc < 4 || argc > 5 {
+                    return Err("ode(f, t0, y0, t_end [, n=200]) — ODE solver RK4".to_string());
+                }
+                let t0   = self.eval_real(&args[1])?;
+                let y0   = self.eval_real(&args[2])?;
+                let t_end = self.eval_real(&args[3])?;
+                let n = if argc == 5 {
+                    self.eval_real(&args[4])? as usize
+                } else {
+                    200_usize
+                };
+                if n == 0 {
+                    return Err("ode(): n debe ser ≥ 1".to_string());
+                }
+                let h = (t_end - t0) / n as f64;
+                let f_expr: Expr = args[0].clone();
+                let scope_base: Scope = (*self.scope).clone();
+                let am = self.angle_mode;
+
+                let eval_f = |t: f64, y: f64| -> Result<f64, String> {
+                    let mut s = scope_base.clone();
+                    s.insert("t".to_string(), Value::Real(t));
+                    s.insert("y".to_string(), Value::Real(y));
+                    let ev = Evaluator { scope: &s, angle_mode: am };
+                    Ok(ev.eval(&f_expr)?.to_complex().re)
+                };
+
+                let mut data: Vec<f64> = Vec::with_capacity((n + 1) * 2);
+                let mut t = t0;
+                let mut y = y0;
+                data.push(t);
+                data.push(y);
+                for _ in 0..n {
+                    let k1 = h * eval_f(t, y)?;
+                    let k2 = h * eval_f(t + h / 2.0, y + k1 / 2.0)?;
+                    let k3 = h * eval_f(t + h / 2.0, y + k2 / 2.0)?;
+                    let k4 = h * eval_f(t + h, y + k3)?;
+                    y += (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
+                    t += h;
+                    data.push(t);
+                    data.push(y);
+                }
+                return Ok(Value::Matrix(DMatrix::from_row_slice(n + 1, 2, &data)));
+            }
             "solve" => {
                 // solve(f, x0=0) — find root of f(x)=0 via Newton-Raphson
                 // solve(f, g, x0=0) — find intersection f(x)=g(x)
@@ -3003,5 +3050,23 @@ mod special_fn_tests {
         assert!((n1.to_complex().re - 7.0).abs() < 1e-10, "L1={}", n1.to_complex().re);
         assert!((n2.to_complex().re - 5.0).abs() < 1e-10, "L2={}", n2.to_complex().re);
         assert!((ni.to_complex().re - 4.0).abs() < 1e-10, "Linf={}", ni.to_complex().re);
+    }
+
+    #[test]
+    fn test_ode_exponential_growth() {
+        // dy/dt = y, y(0) = 1 → y(1) = e ≈ 2.71828...
+        // ode(f, t0, y0, t_end, n) — f uses var 'y' for state, 't' for time
+        let v = eval_str_test("ode(y, 0, 1, 1, 500)");
+        match v {
+            Value::Matrix(m) => {
+                assert_eq!(m.ncols(), 2, "must have 2 columns");
+                assert_eq!(m.nrows(), 501, "must have n+1 rows");
+                let y_final = m[(m.nrows() - 1, 1)];
+                let e = std::f64::consts::E;
+                assert!((y_final - e).abs() < 1e-4,
+                    "y(1) = {y_final}, expected e = {e:.5}");
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
     }
 }
