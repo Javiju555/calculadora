@@ -475,6 +475,7 @@ const en: Record<string, string> = {
   "Bases / Bits": "Bases / Bits",
   "Combinatoria / Álgebra": "Combinatorics / Algebra",
   "Álgebra lineal": "Linear algebra",
+  "Señales / ODE": "Signals / ODE",
 
   // ── Help panel rows (Spanish text parts) ──
   "asignar var": "assign var",
@@ -544,6 +545,13 @@ const en: Record<string, string> = {
   "factorial": "factorial",
   "Estadística": "Statistics",
   "Escribe expresiones o asignaciones:": "Write expressions or assignments:",
+  "FFT → [re;im]": "complex FFT → 2×N matrix [re; im]",
+  "magnitud FFT": "FFT magnitude",
+  "IFFT (matriz 2×N)": "inverse FFT (takes 2×N matrix)",
+  "convolución": "discrete convolution",
+  "RK4, vars t y": "RK4 solver, vars t and y",
+  "ode: f usa vars t (tiempo) e y (estado)": "ode: f uses vars t (time) and y (state)",
+
   "pendiente": "slope",
   "literales": "literals",
   "matriz": "matrix",

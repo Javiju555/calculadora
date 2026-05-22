@@ -2052,6 +2052,16 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>dot cross msolve</code></div>
           <div class="eng-help-row"><code>ones zeros eye</code></div>
         </div>
+        <div class="eng-help-section">
+          <div class="eng-help-cat">${tr('Señales / ODE')}</div>
+          <div class="eng-help-row"><code>fft(v)</code> ${tr('FFT → [re;im]')}</div>
+          <div class="eng-help-row"><code>fft_mag(v)</code> ${tr('magnitud FFT')}</div>
+          <div class="eng-help-row"><code>ifft(C)</code> ${tr('IFFT (matriz 2×N)')}</div>
+          <div class="eng-help-row"><code>conv(a,b)</code> ${tr('convolución')}</div>
+          <div class="eng-help-row"><code>hann(n)</code> &nbsp;<code>hamming(n)</code> &nbsp;<code>blackman(n)</code></div>
+          <div class="eng-help-row"><code>ode(f,t0,y0,tend)</code> ${tr('RK4, vars t y')}</div>
+          <div class="eng-help-note">${tr('ode: f usa vars t (tiempo) e y (estado)')}</div>
+        </div>
       </div>
       <div class="eng-sidebar-ops">
         <span class="eng-ops-label">${tr('Operaciones')}</span>

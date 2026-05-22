@@ -26,9 +26,11 @@
 
 ## Fase 3 — Álgebra lineal y estadística
 
-- [ ] Matrices: sintaxis [1,2;3,4], operaciones det/inv/transpose
-- [ ] Resolver sistemas lineales Ax=b
-- [ ] Eigenvalores/vectores (nalgebra)
+- [x] Matrices: sintaxis [1,2;3,4], operaciones det/inv/transpose
+- [x] Resolver sistemas lineales Ax=b
+- [x] Eigenvalores/vectores (nalgebra) — solo simétricas
+- [x] SVD — svd(A) retorna valores singulares; QR — qr(A) retorna Q
+- [x] Normas (1, 2, Frobenius, ∞)
 - [ ] Distribuciones estadísticas: normal, binomial, t-Student
 - [ ] Regresión lineal/polinomial
 
@@ -36,7 +38,13 @@
 
 - [ ] Sistema de unidades físicas (propagación por cálculos)
 - [ ] Gráfico 3D z=f(x,y) (WebGL canvas)
-- [ ] ODE solver Runge-Kutta + plot de la solución
+- [x] FFT / IFFT sobre arrays (rustfft)
+- [x] Ventanas: Hann, Hamming, Blackman
+- [x] Convolución discreta
+- [x] ODE solver RK4: ode(f, t0, y0, tend [, n])
+- [ ] PSD / espectro de potencia
+- [ ] Filtros digitales (FIR/IIR básicos)
+- [ ] Autocorrelación
 - [ ] Modo Notebook: sesiones .calc guardables/compartibles
 - [ ] Export PDF/LaTeX de sesión completa
 - [ ] Step-by-step para derivadas e integrales
