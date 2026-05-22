@@ -502,6 +502,8 @@ const en: Record<string, string> = {
   "traza": "trace",
   "rango": "rank",
   "norma Frobenius": "Frobenius norm",
+  "valores singulares": "singular values",
+  "matriz Q": "Q matrix (QR)",
   "eigenvalores*": "eigenvalues*",
   "producto escalar": "dot product",
   "producto vectorial": "cross product",

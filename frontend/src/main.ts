@@ -1904,6 +1904,9 @@ function buildEngineeringLayout(): HTMLElement {
           <div class="eng-help-row"><code>trace(A)</code> ${tr('traza')}</div>
           <div class="eng-help-row"><code>rank(A)</code> ${tr('rango')}</div>
           <div class="eng-help-row"><code>norm(A)</code> ${tr('norma Frobenius')}</div>
+          <div class="eng-help-row"><code>norm(v,1)</code> L1 &nbsp;<code>norm(v,2)</code> L2 &nbsp;<code>norm(v,Inf)</code> L∞</div>
+          <div class="eng-help-row"><code>svd(A)</code> ${tr('valores singulares')}</div>
+          <div class="eng-help-row"><code>qr(A)</code> ${tr('matriz Q')}</div>
           <div class="eng-help-row"><code>eig(A)</code> ${tr('eigenvalores*')}</div>
           <div class="eng-help-row"><code>linsolve(A,b)</code> Ax=b</div>
           <div class="eng-help-row"><code>dot(u,v)</code> ${tr('producto escalar')}</div>
