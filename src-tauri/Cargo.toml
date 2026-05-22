@@ -23,6 +23,7 @@ num-complex = { version = "0.4", features = ["serde"] }
 nalgebra = "0.33"
 statrs = "0.17"
 special = "0.9"
+rustfft = "6"
 
 [profile.release]
 opt-level = "s"

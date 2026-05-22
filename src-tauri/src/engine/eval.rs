@@ -1,5 +1,6 @@
 use super::ast::{Expr, Stmt};
 use nalgebra::DMatrix;
+use rustfft::{FftPlanner, num_complex::Complex as FftComplex};
 use num_complex::Complex64;
 /// Numerical evaluator.  Works over Complex<f64> for full generality;
 /// results that have negligible imaginary parts are returned as real.
@@ -895,6 +896,118 @@ impl<'a> Evaluator<'a> {
                     .map(|d| d.subsec_nanos())
                     .unwrap_or(12345);
                 Complex64::new((seed as f64) / (u32::MAX as f64), 0.0)
+            }
+            // ── FFT / Signal processing ──────────────────────────────────────
+            "fft" | "fft_mag" | "ifft" => {
+                let fn_name = name;
+                if fn_name == "ifft" {
+                    if argc != 1 {
+                        return Err("ifft(C) requiere 1 argumento (matriz 2×N [re; im])".to_string());
+                    }
+                    match self.eval(&args[0])? {
+                        Value::Matrix(m) => {
+                            if m.nrows() != 2 {
+                                return Err("ifft(C): C debe ser matriz 2×N [re; im]".to_string());
+                            }
+                            let n = m.ncols();
+                            let mut buf: Vec<FftComplex<f64>> = (0..n)
+                                .map(|i| FftComplex::new(m[(0, i)], m[(1, i)]))
+                                .collect();
+                            let mut planner = FftPlanner::new();
+                            let ifft_plan = planner.plan_fft_inverse(n);
+                            ifft_plan.process(&mut buf);
+                            let scale = 1.0 / n as f64;
+                            let out: Vec<f64> = buf.iter().map(|c| c.re * scale).collect();
+                            return Ok(Value::Matrix(DMatrix::from_row_slice(1, n, &out)));
+                        }
+                        _ => return Err("ifft() requiere una matriz 2×N".to_string()),
+                    }
+                } else {
+                    if argc != 1 {
+                        return Err(format!("{fn_name}(v) requiere 1 argumento"));
+                    }
+                    match self.eval(&args[0])? {
+                        Value::Matrix(m) => {
+                            let vals: Vec<f64> = m.iter().cloned().collect();
+                            let n = vals.len();
+                            let mut buf: Vec<FftComplex<f64>> = vals
+                                .iter()
+                                .map(|&r| FftComplex::new(r, 0.0))
+                                .collect();
+                            let mut planner = FftPlanner::new();
+                            let fft_plan = planner.plan_fft_forward(n);
+                            fft_plan.process(&mut buf);
+                            if fn_name == "fft_mag" {
+                                let mag: Vec<f64> = buf.iter().map(|c| c.norm()).collect();
+                                return Ok(Value::Matrix(DMatrix::from_row_slice(1, n, &mag)));
+                            } else {
+                                // fft: return 2×N matrix [re; im]
+                                let re: Vec<f64> = buf.iter().map(|c| c.re).collect();
+                                let im: Vec<f64> = buf.iter().map(|c| c.im).collect();
+                                let mut data = re;
+                                data.extend(im);
+                                return Ok(Value::Matrix(DMatrix::from_row_slice(2, n, &data)));
+                            }
+                        }
+                        _ => return Err(format!("{fn_name}() requiere un vector")),
+                    }
+                }
+            }
+            "conv" => {
+                if argc != 2 {
+                    return Err("conv(a, b) requiere 2 argumentos".to_string());
+                }
+                match (self.eval(&args[0])?, self.eval(&args[1])?) {
+                    (Value::Matrix(a), Value::Matrix(b)) => {
+                        let av: Vec<f64> = a.iter().cloned().collect();
+                        let bv: Vec<f64> = b.iter().cloned().collect();
+                        let na = av.len();
+                        let nb = bv.len();
+                        let n_out = na + nb - 1;
+                        let n_fft = n_out.next_power_of_two();
+                        let mut fa: Vec<FftComplex<f64>> = av.iter().map(|&r| FftComplex::new(r, 0.0))
+                            .chain(std::iter::repeat(FftComplex::new(0.0, 0.0)).take(n_fft - na))
+                            .collect();
+                        let mut fb: Vec<FftComplex<f64>> = bv.iter().map(|&r| FftComplex::new(r, 0.0))
+                            .chain(std::iter::repeat(FftComplex::new(0.0, 0.0)).take(n_fft - nb))
+                            .collect();
+                        let mut planner = FftPlanner::new();
+                        let fft_plan = planner.plan_fft_forward(n_fft);
+                        fft_plan.process(&mut fa);
+                        fft_plan.process(&mut fb);
+                        let mut fc: Vec<FftComplex<f64>> = fa.iter().zip(fb.iter())
+                            .map(|(a, b)| a * b)
+                            .collect();
+                        let ifft_plan = planner.plan_fft_inverse(n_fft);
+                        ifft_plan.process(&mut fc);
+                        let scale = 1.0 / n_fft as f64;
+                        let out: Vec<f64> = fc[..n_out].iter().map(|c| c.re * scale).collect();
+                        return Ok(Value::Matrix(DMatrix::from_row_slice(1, n_out, &out)));
+                    }
+                    _ => return Err("conv() requiere dos vectores".to_string()),
+                }
+            }
+            "hann" | "hamming" | "blackman" => {
+                if argc != 1 {
+                    return Err(format!("{name}(n) requiere 1 argumento"));
+                }
+                let n = self.eval_real(&args[0])? as usize;
+                if n < 2 {
+                    return Err(format!("{name}(n): n debe ser ≥ 2"));
+                }
+                use std::f64::consts::PI;
+                let nm1 = (n - 1) as f64;
+                let wfn = name;
+                let w: Vec<f64> = (0..n).map(|i| {
+                    let x = 2.0 * PI * i as f64 / nm1;
+                    match wfn {
+                        "hann"     => 0.5 * (1.0 - x.cos()),
+                        "hamming"  => 0.54 - 0.46 * x.cos(),
+                        "blackman" => 0.42 - 0.5 * x.cos() + 0.08 * (2.0 * x).cos(),
+                        _          => unreachable!(),
+                    }
+                }).collect();
+                return Ok(Value::Matrix(DMatrix::from_row_slice(1, n, &w)));
             }
             // ── Statistics (variadic) ─────────────────────────────────────
             "mean" | "avg" => {
@@ -2778,6 +2891,73 @@ mod special_fn_tests {
     fn eval_str_test(src: &str) -> Value {
         let scope = Scope::new();
         super::eval_str(src, &scope, "rad").expect(&format!("eval_str failed for: {src}"))
+    }
+
+    #[test]
+    fn test_fft_mag_constant() {
+        // fft_mag of constant signal [1,1,1,1] → magnitude [4,0,0,0]
+        let v = eval_str_test("fft_mag([1,1,1,1])");
+        match v {
+            Value::Matrix(m) => {
+                let vals: Vec<f64> = m.iter().cloned().collect();
+                assert!((vals[0] - 4.0).abs() < 1e-9, "DC={}", vals[0]);
+                for i in 1..vals.len() {
+                    assert!(vals[i] < 1e-9, "bin[{i}]={}", vals[i]);
+                }
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_fft_mag_nyquist() {
+        // fft_mag of alternating [1,-1,1,-1] → magnitude [0,0,4,0]
+        let v = eval_str_test("fft_mag([1,-1,1,-1])");
+        match v {
+            Value::Matrix(m) => {
+                let vals: Vec<f64> = m.iter().cloned().collect();
+                assert!(vals[0] < 1e-9, "DC={}", vals[0]);
+                assert!(vals[1] < 1e-9, "bin1={}", vals[1]);
+                assert!((vals[2] - 4.0).abs() < 1e-9, "Nyquist={}", vals[2]);
+                assert!(vals[3] < 1e-9, "bin3={}", vals[3]);
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_hann_window() {
+        // hann(4): w[n] = 0.5*(1 - cos(2π*n/(N-1))), n=0..3 → [0, 0.75, 0.75, 0]
+        let v = eval_str_test("hann(4)");
+        match v {
+            Value::Matrix(m) => {
+                let vals: Vec<f64> = m.iter().cloned().collect();
+                assert_eq!(vals.len(), 4);
+                assert!(vals[0].abs() < 1e-10, "hann[0]={}", vals[0]);
+                assert!((vals[1] - 0.75).abs() < 1e-10, "hann[1]={}", vals[1]);
+                assert!((vals[2] - 0.75).abs() < 1e-10, "hann[2]={}", vals[2]);
+                assert!(vals[3].abs() < 1e-10, "hann[3]={}", vals[3]);
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_conv_delta() {
+        // conv([1,0,0], [1,2,3]) = [1,2,3,0,0] — convolving with delta leaves signal unchanged
+        let v = eval_str_test("conv([1,0,0], [1,2,3])");
+        match v {
+            Value::Matrix(m) => {
+                let vals: Vec<f64> = m.iter().cloned().collect();
+                assert_eq!(vals.len(), 5);
+                assert!((vals[0] - 1.0).abs() < 1e-9, "c[0]={}", vals[0]);
+                assert!((vals[1] - 2.0).abs() < 1e-9, "c[1]={}", vals[1]);
+                assert!((vals[2] - 3.0).abs() < 1e-9, "c[2]={}", vals[2]);
+                assert!(vals[3].abs() < 1e-9, "c[3]={}", vals[3]);
+                assert!(vals[4].abs() < 1e-9, "c[4]={}", vals[4]);
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
     }
 
     #[test]
