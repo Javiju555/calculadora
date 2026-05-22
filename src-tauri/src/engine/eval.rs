@@ -514,6 +514,50 @@ impl<'a> Evaluator<'a> {
                     _ => return Err("eig() requiere una matriz".to_string()),
                 }
             }
+            "svd" => {
+                if argc != 1 {
+                    return Err("svd(A) requiere 1 argumento".to_string());
+                }
+                match self.eval(&args[0])? {
+                    Value::Matrix(m) => {
+                        let svd = nalgebra::SVD::new(m, false, false);
+                        let vals: Vec<f64> = svd.singular_values.iter().cloned().collect();
+                        return Ok(Value::Matrix(DMatrix::from_row_slice(1, vals.len(), &vals)));
+                    }
+                    _ => return Err("svd() requiere una matriz".to_string()),
+                }
+            }
+            "qr" => {
+                if argc != 1 {
+                    return Err("qr(A) requiere 1 argumento".to_string());
+                }
+                match self.eval(&args[0])? {
+                    Value::Matrix(m) => {
+                        let qr = m.qr();
+                        let q = qr.q();
+                        return Ok(Value::Matrix(q));
+                    }
+                    _ => return Err("qr() requiere una matriz".to_string()),
+                }
+            }
+            "norm" if argc == 2 => {
+                let p_val = self.eval_real(&args[1]).unwrap_or(f64::NAN);
+                match self.eval(&args[0])? {
+                    Value::Matrix(m) => {
+                        let result = if p_val == 1.0 {
+                            m.iter().map(|x| x.abs()).sum()
+                        } else if p_val == 2.0 {
+                            m.norm()
+                        } else if p_val.is_infinite() && p_val > 0.0 {
+                            m.iter().cloned().fold(0.0_f64, |acc, x| acc.max(x.abs()))
+                        } else {
+                            m.iter().map(|x| x.abs().powf(p_val)).sum::<f64>().powf(1.0 / p_val)
+                        };
+                        return Ok(Value::Real(result));
+                    }
+                    _ => return Err("norm(v, p) requiere una matriz como primer argumento".to_string()),
+                }
+            }
             "linsolve" | "msolve" => {
                 // linsolve(A, b) — solve Ax = b
                 if argc != 2 {
@@ -2729,5 +2773,55 @@ mod special_fn_tests {
             }
             other => panic!("expected Real, got {:?}", other),
         }
+    }
+
+    fn eval_str_test(src: &str) -> Value {
+        let scope = Scope::new();
+        super::eval_str(src, &scope, "rad").expect(&format!("eval_str failed for: {src}"))
+    }
+
+    #[test]
+    fn test_svd_singular_values() {
+        // svd of diagonal [2,0;0,1] → singular values [2, 1]
+        let v = eval_str_test("svd([2,0; 0,1])");
+        match v {
+            Value::Matrix(m) => {
+                let vals: Vec<f64> = m.iter().cloned().collect();
+                assert!((vals[0] - 2.0).abs() < 1e-10, "expected sv[0]=2, got {}", vals[0]);
+                assert!((vals[1] - 1.0).abs() < 1e-10, "expected sv[1]=1, got {}", vals[1]);
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_qr_orthonormal_q() {
+        // Q'*Q must equal identity
+        let q = eval_str_test("qr([3,1; 0,2])");
+        match q {
+            Value::Matrix(m) => {
+                let qt = m.transpose();
+                let prod = qt * &m;
+                for i in 0..prod.nrows() {
+                    for j in 0..prod.ncols() {
+                        let expected = if i == j { 1.0 } else { 0.0 };
+                        assert!((prod[(i,j)] - expected).abs() < 1e-10,
+                            "Q'Q[{i},{j}] = {} expected {expected}", prod[(i,j)]);
+                    }
+                }
+            }
+            other => panic!("expected Matrix, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_norm_p() {
+        // norm([3,4], 1) = 7,  norm([3,4], 2) = 5,  norm([3,4], Inf) = 4
+        let n1 = eval_str_test("norm([3,4], 1)");
+        let n2 = eval_str_test("norm([3,4], 2)");
+        let ni = eval_str_test("norm([3,4], Inf)");
+        assert!((n1.to_complex().re - 7.0).abs() < 1e-10, "L1={}", n1.to_complex().re);
+        assert!((n2.to_complex().re - 5.0).abs() < 1e-10, "L2={}", n2.to_complex().re);
+        assert!((ni.to_complex().re - 4.0).abs() < 1e-10, "Linf={}", ni.to_complex().re);
     }
 }
